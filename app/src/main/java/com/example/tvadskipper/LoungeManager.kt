@@ -82,6 +82,14 @@ class LoungeManager private constructor(context: Context) {
     private var adSkipCountdownJob: Job? = null
 
     @Volatile
+    private var bootSkipCount = 0
+
+    init {
+        bootSkipCount = 0
+        prefs.edit().putInt(PREFS_KEY_LOUNGE_SKIP_COUNT, 0).apply()
+    }
+
+    @Volatile
     var isConnected = false
         private set
 
@@ -98,7 +106,13 @@ class LoungeManager private constructor(context: Context) {
     }
 
     fun getSkipCount(): Int {
-        return prefs.getInt(PREFS_KEY_LOUNGE_SKIP_COUNT, 0)
+        return bootSkipCount
+    }
+
+    fun resetSkipCount() {
+        bootSkipCount = 0
+        prefs.edit().putInt(PREFS_KEY_LOUNGE_SKIP_COUNT, 0).apply()
+        AppLogger.i(TAG, "🔄 Lounge skip count reset to 0 by user request.")
     }
 
     fun getLastEventDesc(): String {
@@ -581,12 +595,12 @@ class LoungeManager private constructor(context: Context) {
     }
 
     private fun onSkipCommandSucceeded() {
-        val count = prefs.getInt(PREFS_KEY_LOUNGE_SKIP_COUNT, 0) + 1
+        bootSkipCount++
         prefs.edit()
-            .putInt(PREFS_KEY_LOUNGE_SKIP_COUNT, count)
+            .putInt(PREFS_KEY_LOUNGE_SKIP_COUNT, bootSkipCount)
             .putLong(PREFS_KEY_LAST_SKIP_TIME, System.currentTimeMillis())
             .apply()
-        onAdSkippedCallback?.invoke(count)
+        onAdSkippedCallback?.invoke(bootSkipCount)
     }
 
     private fun muteAudio() {

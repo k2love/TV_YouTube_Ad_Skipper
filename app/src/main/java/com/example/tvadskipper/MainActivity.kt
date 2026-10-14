@@ -118,6 +118,28 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().putBoolean(TvAdSkipService.KEY_QR_AD_AUTO_DISMISS, isChecked).apply()
         }
 
+        binding.btnResetSkipCount.setOnClickListener {
+            loungeManager.resetSkipCount()
+            prefs.edit().putInt(TvAdSkipService.KEY_SKIP_COUNT, 0).apply()
+            TvAdSkipService.instance?.resetSkipCount()
+            updateLoungeUI()
+            Toast.makeText(this, "광고 스킵 횟수가 0으로 초기화되었습니다.", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.tvLoungeStats.setOnClickListener {
+            loungeManager.resetSkipCount()
+            prefs.edit().putInt(TvAdSkipService.KEY_SKIP_COUNT, 0).apply()
+            TvAdSkipService.instance?.resetSkipCount()
+            updateLoungeUI()
+            Toast.makeText(this, "광고 스킵 횟수가 0으로 초기화되었습니다.", Toast.LENGTH_SHORT).show()
+        }
+
+        loungeManager.onAdSkippedCallback = { count ->
+            runOnUiThread {
+                binding.tvLoungeStats.text = getString(R.string.lounge_stats, count)
+            }
+        }
+
         loungeManager.onStatusChanged = { _, statusMsg ->
             runOnUiThread {
                 binding.tvLoungeEventDesc.text = "상태: $statusMsg"

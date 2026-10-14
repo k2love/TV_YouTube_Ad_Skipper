@@ -2,11 +2,8 @@ package com.example.tvadskipper
 
 import android.app.Service
 import android.content.Intent
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.util.Log
-import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,39 +23,26 @@ class LoungeSkipService : Service() {
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private var listeningJob: Job? = null
-    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()
         isServiceRunning = true
         Log.i(TAG, "LoungeSkipService created.")
 
+        // 🎯 순수 무음 모드: 영상 시청을 방해하는 하단 중앙 Toast 알림을 전면 배제하고 순수 백그라운드 처리
         val loungeManager = LoungeManager.getInstance(this)
         loungeManager.onAdSkippedCallback = { count ->
-            mainHandler.post {
-                Toast.makeText(
-                    applicationContext,
-                    "🎯 [Lounge] 유튜브 광고 자동 건너뛰기 성공! (${count}회)",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
+            Log.i(TAG, "🎯 [Lounge] Ad skipped silently (boot count: $count)")
+            AppLogger.i(TAG, "🎯 [Lounge] Ad skipped silently (boot count: $count)")
         }
 
         loungeManager.onAutoMuteCallback = { isMuted, volume ->
-            mainHandler.post {
-                if (isMuted) {
-                    Toast.makeText(
-                        applicationContext,
-                        "🔇 [Lounge] 강제 광고 감지: 하드웨어 자동 음소거 적용",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    Toast.makeText(
-                        applicationContext,
-                        "🔊 [Lounge] 본 영상 재생: 원래 볼륨($volume) 복원",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+            if (isMuted) {
+                Log.i(TAG, "🔇 [Lounge] Auto-mute active")
+                AppLogger.i(TAG, "🔇 [Lounge] Auto-mute active")
+            } else {
+                Log.i(TAG, "🔊 [Lounge] Main video playing: volume($volume) restored")
+                AppLogger.i(TAG, "🔊 [Lounge] Main video playing: volume($volume) restored")
             }
         }
 

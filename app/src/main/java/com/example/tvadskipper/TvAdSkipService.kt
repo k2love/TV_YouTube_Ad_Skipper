@@ -15,16 +15,9 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.util.Log
-import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.view.Display
-import android.view.Gravity
-import android.view.View
-import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import android.widget.TextView
-import android.widget.Toast
 import kotlin.math.max
 import kotlin.math.min
 
@@ -63,86 +56,18 @@ class TvAdSkipService : AccessibilityService() {
     private var isAnalyzingScreenshot = false
     private val qrSentinelIntervalMs = 1200L
 
-    private var windowManager: WindowManager? = null
-    private var miniBadgeView: TextView? = null
-    private var miniBadgeDismissRunnable: Runnable? = null
+    @Volatile
+    private var bootSkipCount = 0
 
-    /**
-     * 🎯 [초미니 알림 배지 (Mini Pill Badge)]:
-     * 화면 중앙 하단의 거대한 토스트 대신, 화면 [우측 상단]에 기존 토스트의 1/4 크기로 작고 세련되게 표시!
-     * ⚠️ importantForAccessibility = NO로 설정하여 접근성 서비스의 자기 자신 감지 무한 루프를 물리적으로 100% 차단!
-     */
-    private fun showMiniBadge(text: String) {
-        if (!::prefs.isInitialized || !prefs.getBoolean(KEY_SHOW_TOAST, true)) return
-
-        mainHandler.post {
-            try {
-                if (windowManager == null) {
-                    windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager
-                }
-                val wm = windowManager ?: return@post
-
-                // 이전 배지가 떠 있으면 즉시 제거
-                miniBadgeDismissRunnable?.let { mainHandler.removeCallbacks(it) }
-                if (miniBadgeView != null && miniBadgeView?.isAttachedToWindow == true) {
-                    try { wm.removeView(miniBadgeView) } catch (_: Exception) {}
-                    miniBadgeView = null
-                }
-
-                // 기존 토스트의 1/4 크기 초미니 캡슐 배지 생성
-                val badge = TextView(this).apply {
-                    this.text = text
-                    setTextColor(Color.WHITE)
-                    textSize = 11f
-                    setPadding(18, 6, 18, 6)
-                    val bg = GradientDrawable().apply {
-                        setColor(Color.parseColor("#E6202020")) // 진한 반투명 다크 그레이
-                        cornerRadius = 14f
-                        setStroke(1, Color.parseColor("#4DFFFFFF"))
-                    }
-                    background = bg
-                    // ⚠️ 포커스 및 접근성 트리에서 원천 배제 (리모컨 포커스 탈취 및 자가 감지 0%)
-                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                    isFocusable = false
-                    isClickable = false
-                }
-
-                val params = WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                    PixelFormat.TRANSLUCENT
-                ).apply {
-                    gravity = Gravity.TOP or Gravity.END // 화면 맨 우측 상단
-                    x = 40 // 우측 마진 40px
-                    y = 30 // 상단 마진 30px
-                }
-
-                wm.addView(badge, params)
-                miniBadgeView = badge
-
-                // 1.2초 후 부드럽게 페이드아웃하며 소멸
-                val dismissRunnable = Runnable {
-                    try {
-                        if (miniBadgeView == badge && badge.isAttachedToWindow) {
-                            badge.animate().alpha(0f).setDuration(200).withEndAction {
-                                try { wm.removeView(badge) } catch (_: Exception) {}
-                                if (miniBadgeView == badge) miniBadgeView = null
-                            }.start()
-                        }
-                    } catch (_: Exception) {}
-                }
-                miniBadgeDismissRunnable = dismissRunnable
-                mainHandler.postDelayed(dismissRunnable, 1200L)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to show mini badge overlay", e)
-            }
+    fun resetSkipCount() {
+        bootSkipCount = 0
+        if (::prefs.isInitialized) {
+            prefs.edit().putInt(KEY_SKIP_COUNT, 0).apply()
         }
+        AppLogger.i(TAG, "🔄 TvAdSkipService skip count reset to 0")
     }
+
+    fun getSkipCount(): Int = bootSkipCount
 
     private val visualSentinelRunnable = object : Runnable {
         override fun run() {
@@ -338,14 +263,10 @@ class TvAdSkipService : AccessibilityService() {
         isServiceRunning = true
         instance = this
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val currentSkipCount = prefs.getInt(KEY_SKIP_COUNT, 0)
-        if (currentSkipCount >= 50) {
-            prefs.edit().putInt(KEY_SKIP_COUNT, 0).apply()
-            Log.i(TAG, "🔄 Reset abnormal skip count ($currentSkipCount -> 0)")
-            AppLogger.i(TAG, "🔄 Reset abnormal skip count ($currentSkipCount -> 0)")
-        }
-        Log.i(TAG, "TvAdSkipService connected and listening.")
-        AppLogger.i(TAG, "TvAdSkipService connected and listening.")
+        bootSkipCount = 0
+        prefs.edit().putInt(KEY_SKIP_COUNT, 0).apply()
+        Log.i(TAG, "TvAdSkipService connected. Boot skip count initialized to 0.")
+        AppLogger.i(TAG, "TvAdSkipService connected. Boot skip count initialized to 0.")
         ensureLoungeServiceAlive()
         startVisualSentinelLoop()
     }
@@ -504,7 +425,7 @@ class TvAdSkipService : AccessibilityService() {
                     if (tryPerformClick(btnNode)) {
                         lastClickTime = currentTime
                         Log.i(TAG, "⚡ Successfully clicked disconnect confirmation button: $btnKw")
-                        showMiniBadge("⚡ 전송 해제")
+                        AppLogger.i(TAG, "⚡ Successfully clicked disconnect confirmation button: $btnKw")
                         return true
                     }
                 }
@@ -595,8 +516,6 @@ class TvAdSkipService : AccessibilityService() {
                 }
             }, 130L)
         }
-
-        showMiniBadge("🎯 QR 닫기")
     }
 
     private fun onQrAdDismissed(currentTime: Long, triggerInfo: String) {
@@ -604,8 +523,6 @@ class TvAdSkipService : AccessibilityService() {
         lastClickTime = currentTime
         Log.i(TAG, "🎯 Successfully dismissed QR Shopping Ad Overlay! ($triggerInfo)")
         AppLogger.i(TAG, "🎯 Successfully dismissed QR Shopping Ad Overlay! ($triggerInfo)")
-
-        showMiniBadge("🎯 QR 닫기")
     }
 
     private fun processNodeTree(root: AccessibilityNodeInfo, currentTime: Long): Boolean {
@@ -1049,14 +966,14 @@ class TvAdSkipService : AccessibilityService() {
         }
 
         if (::prefs.isInitialized) {
-            val count = prefs.getInt(KEY_SKIP_COUNT, 0) + 1
+            bootSkipCount++
             prefs.edit()
-                .putInt(KEY_SKIP_COUNT, count)
+                .putInt(KEY_SKIP_COUNT, bootSkipCount)
                 .putLong(KEY_LAST_SKIP_TIME, System.currentTimeMillis())
                 .apply()
 
-            // 🎯 화면 중앙 하단의 거대한 토스트 대신 [우측 상단] 1/4 크기 초미니 배지로 작고 깔끔하게 표시!
-            showMiniBadge("⚡ 스킵 완료")
+            Log.i(TAG, "⚡ Ad skipped successfully (boot count: $bootSkipCount)")
+            AppLogger.i(TAG, "⚡ Ad skipped successfully (boot count: $bootSkipCount)")
         }
     }
 
@@ -1067,10 +984,6 @@ class TvAdSkipService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         stopVisualSentinelLoop()
-        if (miniBadgeView != null && miniBadgeView?.isAttachedToWindow == true) {
-            try { windowManager?.removeView(miniBadgeView) } catch (_: Exception) {}
-            miniBadgeView = null
-        }
         isServiceRunning = false
         instance = null
     }

@@ -1,6 +1,6 @@
 {
-  "versionCode": 68,
-  "versionName": "0.6.8",
+  "versionCode": 69,
+  "versionName": "0.6.9",
   "downloadUrl": "https://raw.githubusercontent.com/k2love/TV_YouTube_Ad_Skipper/main/TV_YouTube_Ad_Skipper.apk",
-  "changelog": "- Google TV 시스템 과부하 및 유튜브 로그인 풀림 원인 완벽 제거 (1초 주기 startService 난사 및 포커스 탈취 코드 전면 삭제)\n- 런처/시스템UI/타 앱 화면 개입 완전 차단 (오직 공식 유튜브 TV 앱 실행 시에만 감시 작동)\n- 계정 연결 해제 위험 팝업 자동 승인 방지 가드 적용\n- 화면 중앙 하단의 거대한 Toast 알림 전면 폐지 -> [우측 상단] 1/4 크기 초미니 반투명 캡슐 배지로 전면 개편\n- 자가 접근성 감지 무한 루프 물리적 100% 차단 (importantForAccessibility=NO)"
+  "changelog": "- 화면 하단 중앙(자막 영역) 및 우측 상단의 모든 토스트/배지 알림 전면 제거 (순수 무음·무간섭 백그라운드 스킵 적용)\n- 누적 스킵 카운트 초기화 및 부팅 후 세션 카운트(휘발성) 방식으로 개편\n- 설정 화면에 스킵 카운트 '초기화' 버튼 추가로 사용자가 언제든 0으로 리셋 가능"
 }
