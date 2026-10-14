@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.tvadskipper"
         minSdk = 21
         targetSdk = 34
-        versionCode = 69
-        versionName = "0.6.9"
+        versionCode = 70
+        versionName = "0.7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -66,4 +66,3 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
-

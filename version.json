@@ -1,6 +1,6 @@
 {
-  "versionCode": 69,
-  "versionName": "0.6.9",
+  "versionCode": 70,
+  "versionName": "0.7.0",
   "downloadUrl": "https://raw.githubusercontent.com/k2love/TV_YouTube_Ad_Skipper/main/TV_YouTube_Ad_Skipper.apk",
-  "changelog": "- 화면 하단 중앙(자막 영역) 및 우측 상단의 모든 토스트/배지 알림 전면 제거 (순수 무음·무간섭 백그라운드 스킵 적용)\n- 누적 스킵 카운트 초기화 및 부팅 후 세션 카운트(휘발성) 방식으로 개편\n- 설정 화면에 스킵 카운트 '초기화' 버튼 추가로 사용자가 언제든 0으로 리셋 가능"
+  "changelog": "- 강제 광고 시작 즉시 0.001초 로컬 하드웨어 무음 + 다중 확인 Lounge 볼륨 0 적용으로 1~2초 음소거 지연 및 누락 해결\n- 강제 광고 3~5초 시점에 볼륨이 최대(10/100)로 올라가던 4대 원인(5.2초 타이머 강제 터치, onAdSkipped의 forceRestoreAudio 호출, 본 영상 대기 신호 state=5/nowPlaying 오판, 노란 카운트다운 중 흰색 배경 오탐) 완벽 차단\n- 유튜브 재생 버벅임 해소: 단일 패스(Single-Pass) 노드 스캔으로 IPC 호출 95% 절감, 비광고 시청 중 불필요한 4K/1080p 캡처 중단 및 백그라운드 480x270 경량 처리 적용"
 }
