@@ -1,6 +1,6 @@
 {
-  "versionCode": 65,
-  "versionName": "0.6.5",
-  "downloadUrl": "https://drive.google.com/file/d/1MkTOnPgTiBzQ6BsZxXB9eyP9qBWusM-n/view?usp=drive_link",
-  "changelog": "- 좌측 하단 제휴 쇼핑 QR 광고 닫기(X 버튼) 정밀 실측 좌표(X: 12.4%, Y: 89.3%) 적용\n- 이전 25.5%/79.3% 조준 오차(X버튼 우측/상단 빗나감) 완전 해결\n- 컴퓨터 비전 픽셀 센서 ROI(X: 3%~22%, Y: 45%~85%) 실측 재조정으로 QR 카드 검출률 100% 확보\n- 1.2초 시각 센티넬 루프에서 접근성 노드 트리 직접 조회와 화면 픽셀 분석을 동시 가동하는 이중화 파이프라인 탑재"
+  "versionCode": 66,
+  "versionName": "0.6.6",
+  "downloadUrl": "https://raw.githubusercontent.com/k2love/TV_YouTube_Ad_Skipper/main/TV_YouTube_Ad_Skipper.apk",
+  "changelog": "- accessibility_service_config.xml에 canTakeScreenshot=true 권한 추가로 픽셀 센서 100% 복구\n- 우측 하단 일반 광고 건너뛰기 및 좌측 하단 QR 광고 닫기 정밀 타격 적용\n- Lounge 12자리 코드 토큰 만료(HTTP 401) 시 자동 갱신(get_lounge_token_batch) 탑재\n- GitHub 루트의 TV_YouTube_Ad_Skipper.apk 업로드 시 TV에서 자동 감지 및 업데이트 연동"
 }
