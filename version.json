@@ -1,6 +1,6 @@
 {
-  "versionCode": 71,
-  "versionName": "0.7.1",
+  "versionCode": 72,
+  "versionName": "0.7.2",
   "downloadUrl": "https://raw.githubusercontent.com/k2love/TV_YouTube_Ad_Skipper/main/TV_YouTube_Ad_Skipper.apk",
-  "changelog": "- 광고 종료 후(스킵 버튼 클릭 직후 및 강제 광고 자연 종료 후) 볼륨(10)이 복원되지 않고 무음(0)으로 유지되던 버그 완벽 해결\n- 스킵 터치 직후 광고 잔류 UI 타임스탬프 즉시 초기화로 딜레이 없는 쾌속 볼륨 복원\n- 접근성 UI 센티널 기반 스킵 불가 강제 광고 자연 종료 감지(onAdEndedFromLocalUi) 연동\n- Lounge 이벤트 adState 0(ENDED) 분류 정정 및 메인 영상 복귀 시 자가 차단 방지"
+  "changelog": "- 정상 영상 재생 중 오음소거(False Positive) 버그 완벽 차단\n- 비광고 시청 중 픽셀 센서 우하단 노란색/스킵 감지 전면 차단 (영상 내 노란 자막, 황혼/조명, 노란 로고로 인한 오음소거 방지)\n- 영단어(Broadcast, Download, Shadow 등) 및 일반 제목 오탐 방지를 위한 정규 광고 배지(isRealAdBadge) 정밀 매칭 적용\n- 영상 탐색바의 '15분 남음' 및 일반 제목('Top 10 in Korea' 등)을 광고 카운트다운으로 오판하던 결함 정규식(countdownRegex)으로 정밀 수정"
 }

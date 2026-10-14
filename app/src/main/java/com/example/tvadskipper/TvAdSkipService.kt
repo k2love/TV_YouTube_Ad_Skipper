@@ -234,19 +234,9 @@ class TvAdSkipService : AccessibilityService() {
         "전송 해제", "연결 해제", "전송 중지", "Stop casting", "Disconnect"
     )
 
-    private val skipKeywords = listOf(
-        "건너뛰기", "광고 건너뛰기", "광고 건너뛰기 버튼", "광고 모두 건너뛰기", "모두 건너뛰기",
-        "Skip", "Skip Ad", "Skip Ads", "Skip ad", "Skip ads"
-    )
+    private val countdownRegex = Regex("""(\d+\s*초\s*(후|뒤)|영상이\s*곧\s*재생|동영상이\s*곧\s*재생|원본\s*영상이\s*곧|[Ss]kip\s+in\s+\d+|[Vv]ideo\s+will\s+play\s+after\s+ad)""")
 
-    private val countdownKeywords = listOf(
-        "초 후", "초 뒤", "초후", "초뒤", "남음", "원본 영상", "영상이 곧", "재생됩니다",
-        "seconds", "sec", " in "
-    )
-
-    private val adContextKeywords = listOf(
-        "광고", "Ad", "Sponsored", "스폰서", "광고 정보"
-    )
+    private val adBadgePattern = Regex("""^(광고(\s*[·•]?\s*\d+[/of\s]|[\s·•\u00A0]|$)|Ad(\s*[·•]?\s*\d+[/of\s]|[\s·•:]|$)|Sponsored)""", RegexOption.IGNORE_CASE)
 
     private val chatKeywords = listOf("채팅", "실시간 채팅", "Chat", "Live chat")
 
@@ -409,19 +399,16 @@ class TvAdSkipService : AccessibilityService() {
                 out.hasAccountKeyword = true
             }
 
-            // 3. 카운트다운 진행 중 문구 ("5초 후", "남음" 등) 감지
+            // 3. 카운트다운 진행 중 문구 ("5초 후 건너뛰기" 등) 감지
             val isCountdown = isCountdownText(text) || isCountdownText(desc)
             if (isCountdown) {
                 out.isCountdownVisible = true
                 out.isAdUiVisible = true
             }
 
-            // 4. 광고 컨텍스트 문구 감지
+            // 4. 실제 광고 배지 감지 (영상 제목/설명 등의 일반 단어 오탐 원천 차단)
             if (!out.isAdUiVisible) {
-                if (knownSkipViewIds.contains(viewId) ||
-                    adContextKeywords.any { combined.contains(it, ignoreCase = true) } ||
-                    skipKeywords.any { combined.contains(it, ignoreCase = true) }
-                ) {
+                if (isRealAdBadge(text, desc, viewId)) {
                     out.isAdUiVisible = true
                 }
             }
@@ -431,12 +418,15 @@ class TvAdSkipService : AccessibilityService() {
                 val isSkipViewId = knownSkipViewIds.contains(viewId) ||
                         viewId.contains("skip_ad", ignoreCase = true) ||
                         viewId.contains("ad_skip", ignoreCase = true)
-                val isSkipText = skipKeywords.any { kw ->
-                    text.contains(kw, ignoreCase = true) || desc.contains(kw, ignoreCase = true)
-                }
+                val isSkipText = text.equals("건너뛰기", ignoreCase = true) || desc.equals("건너뛰기", ignoreCase = true) ||
+                        text.contains("광고 건너뛰기") || desc.contains("광고 건너뛰기") ||
+                        text.contains("모두 건너뛰기") || desc.contains("모두 건너뛰기") ||
+                        text.equals("Skip", ignoreCase = true) || desc.equals("Skip", ignoreCase = true) ||
+                        text.startsWith("Skip Ad", ignoreCase = true) || desc.startsWith("Skip Ad", ignoreCase = true)
                 if (isSkipViewId || isSkipText) {
                     out.skipNode = node
                     out.skipTriggerDesc = if (isSkipViewId) "ViewId: $viewId" else "Keyword: $combined"
+                    out.isAdUiVisible = true
                 }
             }
 
@@ -517,8 +507,27 @@ class TvAdSkipService : AccessibilityService() {
     }
 
     private fun isCountdownText(text: String): Boolean {
-        if (text.isEmpty()) return false
-        return countdownKeywords.any { cd -> text.contains(cd, ignoreCase = true) } && text.any { it.isDigit() }
+        if (text.isEmpty() || text.length > 35) return false
+        return countdownRegex.containsMatchIn(text)
+    }
+
+    private fun isRealAdBadge(text: String, desc: String, viewId: String): Boolean {
+        if (knownSkipViewIds.contains(viewId) ||
+            viewId.contains("skip_ad", ignoreCase = true) ||
+            viewId.contains("ad_skip", ignoreCase = true) ||
+            viewId.contains("ad_badge", ignoreCase = true) ||
+            viewId.contains("ad_indicator", ignoreCase = true)
+        ) {
+            return true
+        }
+
+        for (raw in listOf(text, desc)) {
+            val t = raw.trim()
+            if (t.isNotEmpty() && t.length <= 20 && adBadgePattern.containsMatchIn(t)) {
+                return true
+            }
+        }
+        return false
     }
 
     private fun tryPerformClick(node: AccessibilityNodeInfo?): Boolean {
@@ -741,17 +750,18 @@ class TvAdSkipService : AccessibilityService() {
             return
         }
 
-        // 1. ⚠️ 핵심 수정: 우하단에 노란색 원형 카운트다운(yellowPixels >= 12)이 존재하면
-        // 강제 광고(5초/15초/20초/30초)가 아직 진행 중이므로 절대 스킵 클릭/볼륨 복원을 하지 않고 즉시 0ms 음소거만 유지!
-        if (yellowPixels >= 12) {
+        // ⚠️ 절대 원칙: 일반 영상 시청 중(!isAdContext)에는 우하단 픽셀 센서(노란 카운터/스킵 버튼) 검사를 전면 차단!
+        // 영상 내부의 노란색 자막, 황혼/폭발/조명, 노란 옷/로고 등으로 인한 정상 영상 오음소거 완벽 방지
+        if (!isAdContext) return
+
+        // 1. 실제 광고 진행 중(isAdContext == true)일 때만 우하단 노란 원형 카운터 감지 및 음소거 유지
+        if (yellowPixels >= 18) {
             val nowUptime = SystemClock.uptimeMillis()
             lastYellowCountdownSeenUptimeMs = nowUptime
             lastAdUiSeenUptimeMs = nowUptime
             LoungeManager.getInstance(this).onAdDetectedFromLocalUi(isCountdownActive = true)
             return
         }
-
-        if (!isAdContext) return
         if (currentTime - lastClickTime < clickCooldownMs) return
 
         // 2. 노란색 카운터가 완전히 사라진 상태(yellowPixels < 12)에서 적정 크기의 흰색 알약 스킵 버튼(55~650px)과 글자(blackPixels >= 6) 검출 시에만 스킵!

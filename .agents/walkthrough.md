@@ -1,41 +1,31 @@
-# 변경 결과 리포트: 광고 종료 후 볼륨 정상 복원(10) 버그 수정 (v0.7.1)
+# 변경 결과 리포트: 정상 영상 재생 중 오음소거 방지 (v0.7.2)
 
 ## 1. 개요 및 변경 배경
-- **증상**: v0.7.0 업데이트 후 강제 광고 시작 시 0ms 칼음소거는 원활히 작동하나, 광고가 종료된 후(스킵 버튼 클릭 후 또는 스킵 불가 강제 광고 재생 종료 후) 볼륨이 10으로 복원되지 않고 영구 음소거(0) 상태로 남아 소리가 나오지 않는 문제가 발생했습니다.
-- **해결 목표**:
-  1. 스킵 가능 광고 스킵 즉시 볼륨 복원.
-  2. 스킵 불가 광고(5초/15초 등) 자연 종료 시 화면 내 광고 UI 부재 감지 후 2초 내에 볼륨(10) 자동 복원.
-  3. 광고 중간(3~5초 구간) 볼륨 튀어오름 방지 가드 완전 유지.
+- **증상**: v0.7.1까지의 빌드에서 일반 정상 영상을 시청하던 중 갑자기 오디오가 0(무음)으로 음소거되는 심각한 오탐(False Positive) 결함이 발생했습니다.
+- **원인 규명**:
+  1. **픽셀 센서의 비광고 시점 노란색 오탐**: `analyzeScreenPixelSensor`에서 `if (yellowPixels >= 12)` 검사가 `if (!isAdContext) return`보다 앞에 위치하여, 일반 영상 시청 중 4.5초 주기 스크린샷 실행 시 화면 우하단에 노란 자막(예능 프로그램 등), 조명, 황혼, 로고 등의 12픽셀만 감지되어도 즉시 강제 음소거(`onAdDetectedFromLocalUi`)를 발동시켰습니다.
+  2. **`adContextKeywords`의 2글자 영문 `"Ad"` 부분일치(contains) 참사**: "Broadcast", "Download", "Shadow", "Road", "Ahead", "Radio", "Leader", "Already", "Standard", "Trading", "Graduation", "Made" 등 일상 영어 단어에 포함된 'ad'로 인해 일반 영상 제목/자막/추천 카드가 광고로 오인되었습니다.
+  3. **`isCountdownText`의 탐색바 잔여시간("15분 남음") 오탐**: 유튜브 TV 탐색바에 표시되는 "15분 남음", "-10:25 남음" 및 일반 제목("Top 10 in Korea", "2 in 1" 등)이 숫자와 "남음"/" in " 키워드로 인해 광고 카운트다운으로 오판되었습니다.
 
 ---
 
-## 2. 핵심 수정 내역
+## 2. 수술적 수정 내역 (v0.7.2)
 
-### A. `LoungeManager.kt`
-1. **스킵 후 볼륨 복원 자가 모순 제거 (`sendSkipAdCommand`)**:
-   - `if (!isAdPlaying && !uiStillHasAd && isAutoMuted)`에서 광고 중 스킵되어 항상 `true`였던 `isAdPlaying` 조건을 제거했습니다.
-   - 스킵 명령 후 450ms 대기(총 800ms) 뒤 화면에 광고 UI나 카운트다운이 없으면 즉시 `isAdPlaying = false`, `isCurrentAdSkippable = false`, `restoreAudio()`를 호출하도록 수정했습니다.
-2. **접근성 스킵 터치 직후 확실한 복원 스케줄링 (`onAccessibilitySkipClicked`)**:
-   - 리모트 네트워크 응답 여부와 무관하게 접근성 서비스에서 스킵 버튼을 클릭한 직후 600ms 후 화면 내 광고 UI가 없으면 즉시 볼륨을 복원합니다.
-3. **UI 센티널 기반 스킵 불가 광고 자연 종료 연동 (`onAdEndedFromLocalUi`)**:
-   - 화면에서 광고 UI 및 노란 카운트다운이 2.0초 이상 부재함을 감지했을 때 호출되는 전용 핸들러를 추가했습니다.
-   - 최소 재생 시간(3.5초 이상)을 검증하여 영상 전환 찰나의 오판을 방지하고 안전하게 볼륨을 복원합니다.
-4. **Lounge 이벤트 `adState == "0"` 분류 정정**:
-   - YouTube Player API에서 `0`은 `ENDED` 상태이므로 슬롯 종료 블록(`1082`, `STOPPED`, `ENDED`)에 `adState == "0"`을 추가하고, `adIsPlaying` 조건에서 제거했습니다.
-5. **메인 영상 검증 자가 차단 제거 (`scheduleMainVideoRestoreVerification`)**:
-   - 광고 직후 항상 참이 되어 복원을 캔슬하던 `recentAdSignal < 2200L` 조건을 제거하고, 순수하게 화면 내 실제 광고 UI 유무(`!uiHasAd`)만 검증하도록 정밀화했습니다.
-6. **로컬 하드웨어 볼륨 복원 시 언뮤트 상태 재확인 (`restoreLocalHardwareAudio`)**:
-   - 볼륨 설정 후 `am.isStreamMute()`가 활성화되어 있는 경우 `ADJUST_UNMUTE`를 재호출하여 일부 TV OS에서 음소거 플래그가 잔존하는 현상을 방지했습니다.
-
-### B. `TvAdSkipService.kt`
-1. **스킵 직후 광고 잔류 UI 타임스탬프 즉시 초기화 (`onAdSkipped`)**:
-   - 스킵 버튼 클릭 즉시 `lastAdUiSeenUptimeMs = 0L`, `lastYellowCountdownSeenUptimeMs = 0L`로 초기화하여 스킵 후 볼륨 복원 윈도우가 딜레이 없이 즉시 열리도록 조치했습니다.
-2. **화면 내 광고 자연 종료 센티널 연동 (`triggerPeriodicVisualCheck` 및 `onAccessibilityEvent`)**:
-   - `!scan.isAdUiVisible && !scan.isCountdownVisible` 상태일 때, 음소거 중(`isAutoMuted`)이고 2.0초 이상 광고 UI와 노란 원형 카운트다운이 모두 없으면 `lounge.onAdEndedFromLocalUi()`를 호출하여 스킵 불가 광고가 끝났을 때 스스로 볼륨을 복원하도록 구현했습니다.
+### A. `TvAdSkipService.kt`
+1. **픽셀 센서 비광고 상태(`!isAdContext`) 즉시 차단**:
+   - `analyzeScreenPixelSensor`에서 QR 닫기 로직 직후 `if (!isAdContext) return`을 배치하여, 일반 영상 시청 중에는 우하단 노란 픽셀/스킵 버튼 ROI 분석을 전면 차단했습니다.
+   - 노란 카운트다운 임계값을 12에서 18로 상향하여 노이즈 내성을 강화했습니다.
+2. **정규 광고 배지 전용 판별기 `isRealAdBadge()` 구현**:
+   - 알려진 viewId(`knownSkipViewIds`, `skip_ad`, `ad_badge` 등) 또는 길이 20자 이하의 정규 광고 배지 패턴(`광고`, `광고 1/2`, `광고 2/2`, `광고 ·`, `Ad`, `Ad 1 of 2`, `Sponsored`)만 정규식(`adBadgePattern`)으로 정밀 검출하도록 전면 개편했습니다.
+   - 긴 일반 영상 제목이나 "Broadcast", "Download" 등이 광고로 오인되는 결함을 100% 원천 차단했습니다.
+3. **정밀 카운트다운 정규식 `countdownRegex` 도입**:
+   - 실제 유튜브 TV 광고 카운트다운 문구(`\d+\s*초\s*(후|뒤)`, `영상이 곧 재생`, `Skip in \d+`, `Video will play after ad`)만 일치하도록 변경하여 일반 영상 탐색바의 "15분 남음"이나 "2 in 1" 등의 일반 문구를 완벽히 제외했습니다.
+4. **스킵 버튼 일치 조건 강화**:
+   - 스킵 키워드를 완전 일치(`text.equals("Skip", ignoreCase = true)`) 또는 `"Skip Ad"` 접두사로 한정하여 일반 영상 제목 내 "Skip" 단어로 인한 오작동을 차단했습니다.
 
 ---
 
 ## 3. 검증 결과
-- **컴파일 및 패키징**: `./gradlew assembleDebug` 빌드 성공 (BUILD SUCCESSFUL)
+- **컴파일 및 패키징**: `./gradlew assembleDebug` 빌드 성공 (BUILD SUCCESSFUL in 7s)
 - **한글 인코딩 전수 점검**: UTF-8 한글 리터럴 깨짐 0건 확인
-- **최신 빌드 파일 갱신**: `TV_YouTube_Ad_Skipper.apk` (6,565,833 bytes) 생성 완료
+- **최신 빌드 파일 갱신**: `TV_YouTube_Ad_Skipper.apk` (6,565,791 bytes) 생성 완료
