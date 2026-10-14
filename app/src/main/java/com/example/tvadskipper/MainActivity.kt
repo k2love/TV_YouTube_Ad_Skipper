@@ -17,7 +17,6 @@ import android.widget.ProgressBar
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.ScrollView
-import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
 import java.io.File
 import android.os.Build
@@ -119,7 +118,7 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().putBoolean(TvAdSkipService.KEY_QR_AD_AUTO_DISMISS, isChecked).apply()
         }
 
-        loungeManager.onStatusChanged = { isConnected, statusMsg ->
+        loungeManager.onStatusChanged = { _, statusMsg ->
             runOnUiThread {
                 binding.tvLoungeEventDesc.text = "상태: $statusMsg"
             }
@@ -226,11 +225,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUpdateListeners() {
-        // 앱 현재 버전 표시
         val currentVersion = "현재 버전: v${updateManager.getCurrentVersionName()} (Code ${updateManager.getCurrentVersionCode()})"
         binding.tvAppVersion.text = currentVersion
 
-        // 수동 업데이트 확인 및 즉시 설치 버튼
         binding.btnCheckUpdate.setOnClickListener {
             val apk = downloadedApkFile
             if (apk != null && apk.exists() && apk.length() > 0) {
@@ -244,7 +241,7 @@ class MainActivity : AppCompatActivity() {
     private fun performCheckUpdate(isManual: Boolean) {
         if (isCheckingUpdate || isDownloadingApk) return
         isCheckingUpdate = true
-        binding.tvUpdateStatus.text = "상태: 구글 드라이브 확인 중..."
+        binding.tvUpdateStatus.text = "상태: GitHub 저장소에서 업데이트 확인 중..."
 
         lifecycleScope.launch {
             val result = updateManager.checkRemoteApkUpdated()
@@ -256,10 +253,26 @@ class MainActivity : AppCompatActivity() {
 
             result.onSuccess { isUpdated ->
                 if (isUpdated) {
-                    binding.tvUpdateStatus.text = "상태: 새 빌드 발견! (다운로드 가능)"
+                    val verLabel = if (updateManager.latestVersionName.isNotEmpty()) {
+                        "v${updateManager.latestVersionName}"
+                    } else {
+                        "새 빌드"
+                    }
+                    binding.tvUpdateStatus.text = "상태: GitHub 새 업데이트 발견 ($verLabel)"
+
+                    val detailMsg = buildString {
+                        append("GitHub 저장소에서 새로운 버전($verLabel)이 감지되었습니다.\n")
+                        if (updateManager.latestChangelog.isNotEmpty()) {
+                            append("\n[변경 내역]\n")
+                            append(updateManager.latestChangelog)
+                            append("\n")
+                        }
+                        append("\n지금 다운로드하여 업데이트하시겠습니까?")
+                    }
+
                     showUpdateConfirmDialog(
-                        title = "🚀 최신 버전 업데이트 발견",
-                        message = "구글 드라이브에 새로운 빌드가 감지되었습니다.\n지금 다운로드하여 업데이트하시겠습니까?"
+                        title = "🚀 최신 버전 업데이트 발견 ($verLabel)",
+                        message = detailMsg
                     )
                 } else {
                     binding.tvUpdateStatus.text = "상태: 최신 상태 유지 중 (v${updateManager.getCurrentVersionName()})"
@@ -295,16 +308,15 @@ class MainActivity : AppCompatActivity() {
     private fun startDownloadAndInstall() {
         if (isDownloadingApk) return
         isDownloadingApk = true
-        binding.tvUpdateStatus.text = "상태: APK 다운로드 중..."
+        binding.tvUpdateStatus.text = "상태: GitHub에서 APK 다운로드 중..."
 
-        // 프로그레스 다이얼로그 레이아웃 생성
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(50, 40, 50, 20)
         }
 
         val tvStatus = TextView(this).apply {
-            text = "업데이트 APK 다운로드 중... (0%)"
+            text = "GitHub에서 업데이트 APK 다운로드 중... (0%)"
             textSize = 14f
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
         }
@@ -325,7 +337,7 @@ class MainActivity : AppCompatActivity() {
         layout.addView(progressBar)
 
         val progressDialog = AlertDialog.Builder(this)
-            .setTitle("APK 다운로드")
+            .setTitle("GitHub APK 다운로드")
             .setView(layout)
             .setCancelable(false)
             .create()
@@ -336,7 +348,7 @@ class MainActivity : AppCompatActivity() {
             val downloadResult = updateManager.downloadApk { progress ->
                 runOnUiThread {
                     progressBar.progress = progress
-                    tvStatus.text = "업데이트 APK 다운로드 중... ($progress%)"
+                    tvStatus.text = "GitHub에서 업데이트 APK 다운로드 중... ($progress%)"
                 }
             }
 
@@ -349,18 +361,15 @@ class MainActivity : AppCompatActivity() {
                     progressBar.progress = 100
                 }
 
-                // 1. 사용자 피드백 대기 후 다운로드 창 닫기
                 kotlinx.coroutines.delay(400L)
                 progressDialog.dismiss()
 
-                // 2. 포커스 복원 및 버튼 텍스트를 즉시 설치 가능 상태로 갱신
                 val verInfo = updateManager.getApkVersionInfo(apkFile)
                 val verName = verInfo?.second ?: "최신 버전"
                 binding.btnCheckUpdate.text = "지금 설치하기 ($verName)"
                 binding.tvUpdateStatus.text = "상태: 다운로드 완료 (설치 화면 실행 중)"
                 binding.btnCheckUpdate.requestFocus()
 
-                // 3. 윈도우 스택이 깨끗해진 상태에서 500ms 후 시스템 설치 화면 단독 직행!
                 kotlinx.coroutines.delay(500L)
                 executeInstallApk(apkFile)
 
@@ -381,7 +390,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // 안드로이드 8.0 이상에서 알 수 없는 소스 설치 권한 검사
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
             Toast.makeText(this, "업데이트를 위해 '출처를 알 수 없는 앱 설치' 권한을 허용해 주세요.", Toast.LENGTH_LONG).show()
             val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {

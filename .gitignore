@@ -1,5 +1,6 @@
 # Built application files
 *.apk
+!TV_YouTube_Ad_Skipper.apk
 *.aar
 *.ap_
 *.aab

@@ -7,6 +7,7 @@ import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -52,7 +53,7 @@ class LoungeManager private constructor(context: Context) {
     private val prefs: SharedPreferences = appContext.getSharedPreferences("lounge_prefs", Context.MODE_PRIVATE)
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS) // 스트리밍 대기 무제한
+        .readTimeout(0, TimeUnit.MILLISECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
@@ -61,7 +62,6 @@ class LoungeManager private constructor(context: Context) {
     private val commandOffset = AtomicInteger(1)
     private var lastAid = 0
 
-    // 볼륨 제어 및 광고 상태 (유튜브 앱 자체 볼륨: 0 ~ 100)
     @Volatile
     private var currentVolume = 100
     @Volatile
@@ -77,8 +77,9 @@ class LoungeManager private constructor(context: Context) {
     private var adStartTime = 0L
     @Volatile
     private var lastSkipAdTime = 0L
-    private var muteTimeoutJob: kotlinx.coroutines.Job? = null
-    private var adPodBridgeJob: kotlinx.coroutines.Job? = null
+    private var muteTimeoutJob: Job? = null
+    private var adPodBridgeJob: Job? = null
+    private var adSkipCountdownJob: Job? = null
 
     @Volatile
     var isConnected = false
@@ -89,8 +90,7 @@ class LoungeManager private constructor(context: Context) {
     var onAutoMuteCallback: ((Boolean, Int) -> Unit)? = null
 
     fun isPaired(): Boolean {
-        return !prefs.getString(PREFS_KEY_SCREEN_ID, null).isNullOrEmpty() &&
-                !prefs.getString(PREFS_KEY_LOUNGE_TOKEN, null).isNullOrEmpty()
+        return !prefs.getString(PREFS_KEY_SCREEN_ID, null).isNullOrEmpty()
     }
 
     fun getPairedDeviceName(): String {
@@ -143,10 +143,57 @@ class LoungeManager private constructor(context: Context) {
                 .apply()
 
             Log.i(TAG, "Successfully paired! screenId=$screenId, name=$deviceName")
+            AppLogger.i(TAG, "Successfully paired! screenId=$screenId, name=$deviceName")
             Result.success(deviceName)
         } catch (e: Exception) {
             Log.e(TAG, "Pairing exception", e)
             Result.failure(e)
+        }
+    }
+
+    /**
+     * [핵심 복구] 영구 screenId를 이용해 만료된 loungeToken을 새로 발급받는 함수
+     * (pyytlounge의 refresh_auth: /pairing/get_lounge_token_batch 규격과 100% 동일)
+     * 이 함수가 없으면 12자리 코드로 한 번 연결된 뒤 몇 시간 후 토큰이 만료(HTTP 401)되었을 때
+     * UI에는 '연결됨'으로 표시되지만 실제로는 아무 신호도 못 받는 현상이 발생함!
+     */
+    private fun refreshLoungeToken(): Boolean {
+        val screenId = prefs.getString(PREFS_KEY_SCREEN_ID, null) ?: return false
+        return try {
+            val formBody = FormBody.Builder()
+                .add("screen_ids", screenId)
+                .build()
+
+            val request = Request.Builder()
+                .url("$BASE_URL/pairing/get_lounge_token_batch")
+                .post(formBody)
+                .build()
+
+            client.newCall(request).execute().use { resp ->
+                val bodyStr = resp.body?.string() ?: ""
+                if (!resp.isSuccessful || bodyStr.isEmpty()) {
+                    Log.w(TAG, "refreshLoungeToken failed: HTTP ${resp.code}")
+                    AppLogger.w(TAG, "refreshLoungeToken failed: HTTP ${resp.code}")
+                    return false
+                }
+                val json = JSONObject(bodyStr)
+                val screens = json.optJSONArray("screens") ?: return false
+                if (screens.length() == 0) return false
+
+                val screenObj = screens.getJSONObject(0)
+                val newToken = screenObj.optString("loungeToken", "")
+                if (newToken.isNotEmpty()) {
+                    prefs.edit().putString(PREFS_KEY_LOUNGE_TOKEN, newToken).apply()
+                    Log.i(TAG, "🔑 Refreshed loungeToken successfully via get_lounge_token_batch!")
+                    AppLogger.i(TAG, "🔑 Refreshed loungeToken successfully via get_lounge_token_batch!")
+                    true
+                } else {
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "refreshLoungeToken exception", e)
+            false
         }
     }
 
@@ -163,34 +210,36 @@ class LoungeManager private constructor(context: Context) {
         isConnected = false
         sid = null
         gsessionid = null
+        adSkipCountdownJob?.cancel()
         onStatusChanged?.invoke(false, "연결 끊김")
     }
 
-    /**
-     * 구글 Lounge 세션에 접속하여 실시간 이벤트 감시 루프 실행
-     */
     suspend fun startListeningLoop() = withContext(Dispatchers.IO) {
         while (coroutineContext.isActive) {
             if (!isPaired()) {
                 isConnected = false
                 onStatusChanged?.invoke(false, "TV 페어링 필요")
-                kotlinx.coroutines.delay(3000)
+                delay(3000)
                 continue
             }
 
             try {
-                // 1단계: 세션 핸드셰이크 (connect)
                 if (sid == null || gsessionid == null) {
                     onStatusChanged?.invoke(false, "구글 서버 세션 연결 시도 중...")
-                    val connected = connectSession()
+                    var connected = connectSession()
+                    if (!connected) {
+                        // 토큰 만료(401 등) 가능성 -> 즉시 토큰 자동 갱신 후 재시도!
+                        if (refreshLoungeToken()) {
+                            connected = connectSession()
+                        }
+                    }
                     if (!connected) {
                         Log.w(TAG, "connectSession returned false, retry in 5s")
-                        kotlinx.coroutines.delay(5000)
+                        delay(5000)
                         continue
                     }
                 }
 
-                // 2단계: 실시간 이벤트 스트림 수신 (subscribe)
                 onStatusChanged?.invoke(true, "유튜브 TV 실시간 감시 작동 중")
                 subscribeStream()
             } catch (e: Exception) {
@@ -199,17 +248,18 @@ class LoungeManager private constructor(context: Context) {
                 sid = null
                 gsessionid = null
                 onStatusChanged?.invoke(false, "재연결 대기 중...")
-                kotlinx.coroutines.delay(5000)
+                delay(5000)
             }
         }
     }
 
-    /**
-     * 1단계: pyytlounge connect() 규격과 100% 일치
-     */
     private fun connectSession(): Boolean {
         val screenId = prefs.getString(PREFS_KEY_SCREEN_ID, null) ?: return false
-        val loungeToken = prefs.getString(PREFS_KEY_LOUNGE_TOKEN, null) ?: return false
+        var loungeToken = prefs.getString(PREFS_KEY_LOUNGE_TOKEN, null)
+        if (loungeToken.isNullOrEmpty()) {
+            if (!refreshLoungeToken()) return false
+            loungeToken = prefs.getString(PREFS_KEY_LOUNGE_TOKEN, null) ?: return false
+        }
 
         val url = "$BASE_URL/bc/bind".toHttpUrlOrNull()!!.newBuilder()
             .addQueryParameter("RID", "1")
@@ -238,23 +288,30 @@ class LoungeManager private constructor(context: Context) {
             .build()
 
         val response = client.newCall(request).execute()
+        if (response.code == 401) {
+            Log.w(TAG, "Lounge token expired (HTTP 401). Clearing token for refresh.")
+            AppLogger.w(TAG, "Lounge token expired (HTTP 401). Clearing token for refresh.")
+            response.close()
+            prefs.edit().remove(PREFS_KEY_LOUNGE_TOKEN).apply()
+            return false
+        }
         if (!response.isSuccessful) {
             Log.e(TAG, "Failed to connect session: HTTP ${response.code}")
+            response.close()
             return false
         }
 
         val reader = BufferedReader(InputStreamReader(response.body?.byteStream()))
         parseChunkStream(reader)
+        response.close()
 
         isConnected = sid != null && gsessionid != null
         commandOffset.set(1)
         Log.i(TAG, "Handshake completed: isConnected=$isConnected, sid=$sid, gsessionid=$gsessionid")
+        AppLogger.i(TAG, "Handshake completed: isConnected=$isConnected, sid=$sid")
         return isConnected
     }
 
-    /**
-     * 2단계: pyytlounge subscribe() 규격과 100% 일치 (RID=rpc Long-polling)
-     */
     private fun subscribeStream() {
         val currentSid = sid ?: return
         val currentGsession = gsessionid ?: return
@@ -283,6 +340,10 @@ class LoungeManager private constructor(context: Context) {
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
             Log.w(TAG, "Subscribe returned HTTP ${response.code}, resetting session")
+            if (response.code == 401) {
+                prefs.edit().remove(PREFS_KEY_LOUNGE_TOKEN).apply()
+            }
+            response.close()
             sid = null
             gsessionid = null
             return
@@ -290,11 +351,9 @@ class LoungeManager private constructor(context: Context) {
 
         val reader = BufferedReader(InputStreamReader(response.body?.byteStream()))
         parseChunkStream(reader)
+        response.close()
     }
 
-    /**
-     * pyytlounge의 _parse_event_chunks와 100% 동일한 청크 길이 기반 디코더
-     */
     private fun parseChunkStream(reader: BufferedReader) {
         var chunkRemaining = 0
         val currentChunk = StringBuilder()
@@ -338,12 +397,10 @@ class LoungeManager private constructor(context: Context) {
 
                 val eventType = eventTuple.getString(0)
 
-                // pyytlounge: event_type == "c" -> sid = args[0]
                 if (eventType == "c") {
                     sid = eventTuple.optString(1, "")
                     Log.i(TAG, "Captured SID: $sid")
                 } else if (eventType == "S") {
-                    // pyytlounge: event_type == "S" -> gsession = args[0]
                     gsessionid = eventTuple.optString(1, "")
                     Log.i(TAG, "Captured gsessionid: $gsessionid")
                 } else {
@@ -386,19 +443,46 @@ class LoungeManager private constructor(context: Context) {
                 }
             }
             "onAdStateChange", "adPlaying" -> {
-                // 스킵 직후 4초 동안 날아오는 구글 서버의 잔여 광고 패킷은 무조건 무시하여 본 영상 사운드 보호!
-                if (System.currentTimeMillis() - lastSkipAdTime < 4000L) {
-                    AppLogger.d(TAG, "Ignoring post-skip residual ad packet to protect main video audio.")
+                val isSkipEnabled = payload?.optString("isSkipEnabled", "false") ?: "false"
+                val adState = payload?.optString("adState", "") ?: ""
+                val adVideoId = payload?.optString("adVideoId", "") ?: ""
+                AppLogger.i(TAG, "📢 Ad Event: adState=$adState, isSkipEnabled=$isSkipEnabled, adVideoId=$adVideoId, isAutoMuted=$isAutoMuted")
+
+                // 1. 실제 광고 슬롯 완전 종료: adState 1082, STOPPED, ENDED
+                if (adState == "1082" || adState.equals("STOPPED", ignoreCase = true) || adState.equals("ENDED", ignoreCase = true)) {
+                    AppLogger.i(TAG, "📢 Ad slot completely ended ($adState). Waiting 1.0s for ad bridge...")
+                    isAdPlaying = false
+                    adSkipCountdownJob?.cancel()
+                    adPodBridgeJob?.cancel()
+                    adPodBridgeJob = GlobalScope.launch(Dispatchers.Main) {
+                        delay(1000)
+                        if (!isAdPlaying && isAutoMuted) {
+                            AppLogger.i(TAG, "📢 Ad slot finished confirmed. Restoring audio.")
+                            restoreAudio()
+                        }
+                    }
                     return
                 }
 
-                val isSkipEnabled = payload?.optString("isSkipEnabled", "false") ?: "false"
-                val adState = payload?.optString("adState", "") ?: ""
-                AppLogger.i(TAG, "📢 Ad Event: adState=$adState, isSkipEnabled=$isSkipEnabled, isAutoMuted=$isAutoMuted")
+                // 2. 광고 진행 상태 설정 및 음소거 적용
+                val adIsPlaying = adState == "1" || adState == "0" || adState == "-1" ||
+                                  adState.equals("PLAYING", ignoreCase = true) ||
+                                  eventType == "adPlaying" || adVideoId.isNotEmpty() ||
+                                  isSkipEnabled.equals("true", ignoreCase = true)
 
-                // 1. 건너뛰기 가능 광고: 버튼 활성화 즉시 skipAd 더블탭 전송 및 접근성 화면 제스처 동시 타격(하이브리드 스킵)
+                if (adIsPlaying) {
+                    adPodBridgeJob?.cancel()
+                    this.isAdPlaying = true
+                    if (isAutoMuteEnabled()) {
+                        muteAudio()
+                    }
+                    // 광고 시작 시 5초 카운트다운 종료 시점(5.2초, 6.4초, 7.9초) 자동 skipAd 예약!
+                    scheduleAdSkipCountdownRetries()
+                }
+
+                // 3. 건너뛰기 가능 신호 수신 시 즉시 skipAd 전송 + 화면 우하단 스킵 병행
                 if (isSkipEnabled.equals("true", ignoreCase = true)) {
-                    AppLogger.i(TAG, "🔥 [Lounge] Ad skip button is ready! Dispatching double-tap skipAd & screen click!")
+                    AppLogger.i(TAG, "🔥 [Lounge] Ad skip enabled signal! Dispatching skipAd & screen click!")
                     sendSkipAdCommand()
                     try {
                         TvAdSkipService.instance?.triggerDirectScreenSkip()
@@ -406,53 +490,22 @@ class LoungeManager private constructor(context: Context) {
                         AppLogger.w(TAG, "Failed to trigger direct screen skip", e)
                     }
                 }
-                // 2. 실제 광고 슬롯 완전 종료: adState 1082, STOPPED, ENDED (절대로 adState 0을 넣지 말 것! 0은 광고 시작 초기화 코드임)
-                else if (adState == "1082" || adState.equals("STOPPED", ignoreCase = true) || adState.equals("ENDED", ignoreCase = true)) {
-                    AppLogger.i(TAG, "📢 Ad slot completely ended ($adState). Waiting 1.0s for ad bridge...")
-                    isAdPlaying = false
-                    adPodBridgeJob?.cancel()
-                    adPodBridgeJob = GlobalScope.launch(Dispatchers.Main) {
-                        delay(1000)
-                        if (!isAdPlaying && isAutoMuted) {
-                            AppLogger.i(TAG, "📢 Ad slot finished confirmed. Restoring audio to 100%.")
-                            restoreAudio()
-                        }
-                    }
-                }
-                // 3. 광고 시작 및 재생 중: adState 1, 0, -1, PLAYING, adPlaying, adVideoId 존재 시
-                else if (isAutoMuteEnabled()) {
-                    val adVideoId = payload?.optString("adVideoId", "") ?: ""
-                    val adIsPlaying = adState == "1" || adState == "0" || adState == "-1" ||
-                                      adState.equals("PLAYING", ignoreCase = true) ||
-                                      eventType == "adPlaying" || adVideoId.isNotEmpty()
-                    if (adIsPlaying) {
-                        adPodBridgeJob?.cancel()
-                        this.isAdPlaying = true
-                        muteAudio()
-                    }
-                }
             }
             "onStateChange" -> {
                 val state = payload?.optInt("state", -1) ?: -1
                 AppLogger.d(TAG, "onStateChange: state=$state (isAdPlaying=$isAdPlaying, isAutoMuted=$isAutoMuted)")
 
-                // 1. 뒤로가기 / 영상 종료 / 큐 대기: state 5(CUED), state 0(ENDED)
                 if (state == 5 || state == 0) {
-                    AppLogger.i(TAG, "🎬 [StateChange=$state] Video stopped/cued (Back pressed or ended). Resetting ad state & restoring audio.")
+                    AppLogger.i(TAG, "🎬 [StateChange=$state] Video stopped/cued. Resetting ad state & restoring audio.")
                     isAdPlaying = false
+                    adSkipCountdownJob?.cancel()
                     adPodBridgeJob?.cancel()
                     adPodBridgeJob = null
                     if (isAutoMuted) {
                         restoreAudio()
                     }
-                }
-                // 2. 본 영상 재생 중 (state=1)
-                else if (state == 1 && isAutoMuted) {
-                    // 1082 패킷이 누락되었더라도 본 영상 재생이 확인되면 광고 상태 강제 해제 및 복원!
-                    AppLogger.i(TAG, "🎬 [StateChange=1] Playback active. Ensuring audio restored.")
-                    isAdPlaying = false
-                    adPodBridgeJob?.cancel()
-                    adPodBridgeJob = null
+                } else if (state == 1 && !isAdPlaying && isAutoMuted) {
+                    AppLogger.i(TAG, "🎬 [StateChange=1] Main playback active. Ensuring audio restored.")
                     restoreAudio()
                 }
             }
@@ -465,15 +518,15 @@ class LoungeManager private constructor(context: Context) {
                 AppLogger.d(TAG, "nowPlaying: videoId=$videoId, adState=$adState, adVideoId=$adVideoId (isAdPlaying=$isAdPlaying, isAutoMuted=$isAutoMuted)")
 
                 if (hasAdInPayload || adState == "1") {
-                    // nowPlaying 패킷 내에 광고 상태나 광고 ID가 포함되어 있다면 광고 재생 중임!
                     isAdPlaying = true
                     if (isAutoMuteEnabled()) {
                         adPodBridgeJob?.cancel()
                         muteAudio()
                     }
+                    scheduleAdSkipCountdownRetries()
                 } else if (videoId.isNotEmpty()) {
-                    // 광고 정보가 전혀 없는 순수 본 영상 패킷! (이전 광고 종료 신호 누락 여부와 무관하게 100% 본 영상 확정)
                     isAdPlaying = false
+                    adSkipCountdownJob?.cancel()
                     adPodBridgeJob?.cancel()
                     adPodBridgeJob = null
                     if (isAutoMuted) {
@@ -481,46 +534,74 @@ class LoungeManager private constructor(context: Context) {
                         restoreAudio()
                     }
                 } else if (videoId.isEmpty() && isAutoMuted) {
-                    // 뒤로가기 해서 videoId가 빈 문자열로 돌아온 경우: 볼륨 원상 복구!
                     AppLogger.i(TAG, "🎬 [NowPlaying] Empty videoId (Home/Back). Restoring audio.")
                     isAdPlaying = false
+                    adSkipCountdownJob?.cancel()
                     adPodBridgeJob?.cancel()
                     adPodBridgeJob = null
                     restoreAudio()
                 }
             }
             "loungeScreenDisconnected" -> {
-                AppLogger.i(TAG, "Lounge screen disconnected. Auto-reconnect loop will restore session.")
+                AppLogger.i(TAG, "Lounge screen disconnected. Clearing session & refreshing token on reconnect.")
                 isConnected = false
                 sid = null
                 gsessionid = null
                 isAdPlaying = false
+                adSkipCountdownJob?.cancel()
                 adPodBridgeJob?.cancel()
                 restoreAudio()
-                onStatusChanged?.invoke(false, "화면 연결 대기 중 (쇼츠 시청 중)")
+                onStatusChanged?.invoke(false, "화면 연결 대기 중 (자동 재연결 중)")
             }
         }
     }
 
     /**
-     * 유튜브 앱 자체 볼륨 음소거 (TV 시스템 볼륨은 손대지 않음)
+     * 광고 시작 후 5초 카운트다운이 끝나는 시점에 맞춰 자동으로 순수 skipAd 명령과 우하단 터치를 발사하는 타이머
+     * (⚠️ 리모컨 ENTER는 우측 광고 상세 분할 화면을 열 수 있으므로 절대 사용하지 않고 skipAd 전용 명령만 발송)
      */
+    private fun scheduleAdSkipCountdownRetries() {
+        if (adSkipCountdownJob?.isActive == true) return
+
+        adSkipCountdownJob = GlobalScope.launch(Dispatchers.IO) {
+            val checkpointsMs = listOf(5200L, 1200L, 1500L, 2500L) // 누적: 5.2초, 6.4초, 7.9초, 10.4초
+            for (waitMs in checkpointsMs) {
+                delay(waitMs)
+                if (!isAdPlaying || !isConnected) break
+                AppLogger.i(TAG, "⏱️ [Ad-Countdown-Timer] Firing scheduled skipAd while ad is playing")
+                val ok = sendCommand("skipAd")
+                if (ok) {
+                    onSkipCommandSucceeded()
+                }
+                try {
+                    TvAdSkipService.instance?.triggerDirectScreenSkip()
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private fun onSkipCommandSucceeded() {
+        val count = prefs.getInt(PREFS_KEY_LOUNGE_SKIP_COUNT, 0) + 1
+        prefs.edit()
+            .putInt(PREFS_KEY_LOUNGE_SKIP_COUNT, count)
+            .putLong(PREFS_KEY_LAST_SKIP_TIME, System.currentTimeMillis())
+            .apply()
+        onAdSkippedCallback?.invoke(count)
+    }
+
     private fun muteAudio() {
         if (isAutoMuted) return
-        // 스킵 직후 4초 동안은 본 영상 사운드 보호를 위해 음소거 절대 차단!
-        if (System.currentTimeMillis() - lastSkipAdTime < 4000L) {
-            AppLogger.d(TAG, "Mute blocked: within 4s after skipAd to protect main video audio.")
+        if (System.currentTimeMillis() - lastSkipAdTime < 2500L) {
+            AppLogger.d(TAG, "Mute blocked: within 2.5s after skipAd to protect main video audio.")
             return
         }
         isAutoMuted = true
         adStartTime = System.currentTimeMillis()
 
-        // 현재 볼륨이 0보다 크면 복원용으로 보존
         if (currentVolume > 0) {
             savedVolumeBeforeMute = currentVolume
         }
 
-        // 유튜브 앱 자체 볼륨을 0으로 전송 (TV 하드웨어 볼륨은 절대 건드리지 않음!)
         GlobalScope.launch(Dispatchers.IO) {
             val success = sendSetVolumeCommand(0)
             AppLogger.i(TAG, "🔇 [YouTube-Mute] YouTube player volume set to 0 (saved: $savedVolumeBeforeMute, success=$success)")
@@ -528,7 +609,6 @@ class LoungeManager private constructor(context: Context) {
 
         onAutoMuteCallback?.invoke(true, 0)
 
-        // 안전 타이머: 광고 최대 길이(30초) 대비 35초 후 무조건 자동 복원 (데드락 원천 방지)
         muteTimeoutJob?.cancel()
         muteTimeoutJob = GlobalScope.launch(Dispatchers.Main) {
             delay(35000)
@@ -540,9 +620,6 @@ class LoungeManager private constructor(context: Context) {
         }
     }
 
-    /**
-     * 광고 종료 후 유튜브 앱 원래 볼륨으로 100% 원상 복원 (패킷 유실 방지 2회 전송)
-     */
     private fun restoreAudio() {
         muteTimeoutJob?.cancel()
         muteTimeoutJob = null
@@ -554,13 +631,11 @@ class LoungeManager private constructor(context: Context) {
         isAutoMuted = false
         isAdPlaying = false
 
-        // 사용자가 유튜브에서 듣던 이전 볼륨(기본 100)으로 유튜브 앱 볼륨 복원!
         val restoreVol = if (savedVolumeBeforeMute in 10..100) savedVolumeBeforeMute else 100
 
         GlobalScope.launch(Dispatchers.IO) {
             val s1 = sendSetVolumeCommand(restoreVol)
             AppLogger.i(TAG, "🔊 [YouTube-Restore-1] Volume set to $restoreVol% (success=$s1)")
-            // 패킷 누락 방지 300ms 후 2차 확인 전송
             delay(300)
             val s2 = sendSetVolumeCommand(restoreVol)
             AppLogger.i(TAG, "🔊 [YouTube-Restore-2] Volume confirmed at $restoreVol% (success=$s2)")
@@ -569,11 +644,7 @@ class LoungeManager private constructor(context: Context) {
         onAutoMuteCallback?.invoke(false, restoreVol)
     }
 
-    /**
-     * 비상 볼륨 즉시 강제 복원 (유튜브 볼륨 100 복원 + 이전 버전으로 낮아진 TV 시스템 볼륨 안전 복구)
-     */
     fun forceRestoreAudio() {
-        // 혹시 이전 버전 사용으로 TV 자체 볼륨이 0이나 낮게 떨어진 경우를 대비한 TV 시스템 볼륨 1회 안전 복구
         try {
             audioManager?.let { am ->
                 val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
@@ -591,15 +662,11 @@ class LoungeManager private constructor(context: Context) {
             AppLogger.w(TAG, "TV system volume recovery failed", e)
         }
 
-        // 유튜브 앱 볼륨 100으로 강제 복원
         savedVolumeBeforeMute = 100
-        isAutoMuted = true // restoreAudio가 실행되도록 플래그 설정
+        isAutoMuted = true
         restoreAudio()
     }
 
-    /**
-     * Lounge 프로토콜 공통 명령 발송 헬퍼
-     */
     private fun sendCommand(command: String, params: Map<String, String>? = null): Boolean {
         val currentSid = sid ?: return false
         val currentGsession = gsessionid ?: return false
@@ -644,9 +711,6 @@ class LoungeManager private constructor(context: Context) {
         }
     }
 
-    /**
-     * 광고 건너뛰기 명령 (더블탭 2회 연속 발송으로 패킷 유실 방지 + 수신율 100% 보장)
-     */
     fun sendSkipAdCommand() {
         lastSkipAdTime = System.currentTimeMillis()
 
@@ -659,15 +723,9 @@ class LoungeManager private constructor(context: Context) {
 
             val success = s1 || s2
             if (success) {
-                val count = prefs.getInt(PREFS_KEY_LOUNGE_SKIP_COUNT, 0) + 1
-                prefs.edit()
-                    .putInt(PREFS_KEY_LOUNGE_SKIP_COUNT, count)
-                    .putLong(PREFS_KEY_LAST_SKIP_TIME, System.currentTimeMillis())
-                    .apply()
-                AppLogger.i(TAG, "🎯 [Lounge] Successfully executed double-tap skipAd on TV! (Total: $count)")
-                onAdSkippedCallback?.invoke(count)
+                onSkipCommandSucceeded()
+                AppLogger.i(TAG, "🎯 [Lounge] Successfully executed double-tap skipAd on TV!")
 
-                // 스킵 성공 후 1.5초 뒤 안전 확인: 광고가 끝났는데도 음소거 상태면 안전 복원
                 delay(1500)
                 if (!isAdPlaying && isAutoMuted) {
                     AppLogger.i(TAG, "🎯 [Lounge] Post-skip ad confirmed ended. Restoring audio.")
@@ -679,9 +737,6 @@ class LoungeManager private constructor(context: Context) {
         }
     }
 
-    /**
-     * 볼륨 설정 명령 (0 ~ 100)
-     */
     fun sendSetVolumeCommand(volume: Int): Boolean {
         return sendCommand("setVolume", mapOf("volume" to volume.coerceIn(0, 100).toString()))
     }

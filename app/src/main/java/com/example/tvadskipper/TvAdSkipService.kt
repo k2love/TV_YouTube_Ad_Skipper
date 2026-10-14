@@ -3,6 +3,7 @@ package com.example.tvadskipper
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -18,6 +19,8 @@ import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
+import kotlin.math.max
+import kotlin.math.min
 
 class TvAdSkipService : AccessibilityService() {
 
@@ -46,7 +49,9 @@ class TvAdSkipService : AccessibilityService() {
     private var lastClickTime = 0L
     private val clickCooldownMs = 800L
     private var lastQrDismissTime = 0L
-    private val qrDismissCooldownMs = 2000L
+    private val qrDismissCooldownMs = 2500L
+    private var lastScreenshotTime = 0L
+    private val minScreenshotIntervalMs = 1150L
     private lateinit var prefs: SharedPreferences
     private val mainHandler = Handler(Looper.getMainLooper())
     private var isAnalyzingScreenshot = false
@@ -68,7 +73,7 @@ class TvAdSkipService : AccessibilityService() {
 
     private fun startVisualSentinelLoop() {
         mainHandler.removeCallbacks(visualSentinelRunnable)
-        mainHandler.postDelayed(visualSentinelRunnable, 2000L)
+        mainHandler.postDelayed(visualSentinelRunnable, 1500L)
         Log.i(TAG, "👁️ Visual Sentinel loop started (interval: ${qrSentinelIntervalMs}ms)")
         AppLogger.i(TAG, "👁️ Visual Sentinel loop started (interval: ${qrSentinelIntervalMs}ms)")
     }
@@ -78,10 +83,26 @@ class TvAdSkipService : AccessibilityService() {
         Log.i(TAG, "Visual Sentinel loop stopped.")
     }
 
+    /**
+     * TV 부팅 직후나 백그라운드 메모리 회수 후에도 LoungeSkipService가 항상 살아있도록 보장
+     */
+    private fun ensureLoungeServiceAlive() {
+        try {
+            val lounge = LoungeManager.getInstance(this)
+            if (lounge.isPaired() && !LoungeSkipService.isServiceRunning) {
+                AppLogger.i(TAG, "🔄 Restarting LoungeSkipService from TvAdSkipService watchdog")
+                startService(Intent(this, LoungeSkipService::class.java))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to ensure LoungeSkipService alive", e)
+        }
+    }
+
     private fun triggerPeriodicVisualCheck() {
+        ensureLoungeServiceAlive()
+
         val qrEnabled = prefs.getBoolean(KEY_QR_AD_AUTO_DISMISS, true)
         val pixelEnabled = prefs.getBoolean(KEY_PIXEL_SENSOR_ENABLED, true)
-        if (!qrEnabled && !pixelEnabled) return
 
         val rootNode = rootInActiveWindow
         val activePkg = rootNode?.packageName?.toString() ?: ""
@@ -90,26 +111,59 @@ class TvAdSkipService : AccessibilityService() {
                             activePkg.contains("setupwraith", ignoreCase = true)
         if (isBlacklisted) return
 
+        val isYouTubeOrOverlay = activePkg.isEmpty() ||
+                                 activePkg.contains("youtube", ignoreCase = true) ||
+                                 activePkg == "android"
+        if (!isYouTubeOrOverlay) return
+
         val currentTime = SystemClock.uptimeMillis()
-        if (currentTime - lastQrDismissTime < qrDismissCooldownMs &&
-            currentTime - lastClickTime < clickCooldownMs) {
-            return
+
+        // 1. 센티넬 루프에서 우하단 광고 건너뛰기 접근성 노드 탐색
+        if (currentTime - lastClickTime >= clickCooldownMs) {
+            var skippedByNode = false
+            if (rootNode != null) {
+                skippedByNode = processNodeTree(rootNode, currentTime)
+            }
+            if (!skippedByNode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                for (window in windows) {
+                    val wRoot = window.root ?: continue
+                    if (processNodeTree(wRoot, currentTime)) {
+                        skippedByNode = true
+                        break
+                    }
+                }
+            }
+            if (skippedByNode) return
         }
 
-        // 1. 영상 재생 중 접근성 이벤트가 없더라도 센티넬 루프에서 노드 트리 1차 즉시 검사!
-        if (qrEnabled && rootNode != null) {
-            if (checkAndDismissQrAdOverlay(rootNode, currentTime)) {
+        // 2. 좌측 하단 QR 쇼핑 광고 노드 탐색
+        if (qrEnabled && currentTime - lastQrDismissTime >= qrDismissCooldownMs) {
+            if (rootNode != null && checkAndDismissQrAdOverlay(rootNode, currentTime)) {
                 return
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                for (window in windows) {
+                    val wRoot = window.root ?: continue
+                    if (checkAndDismissQrAdOverlay(wRoot, currentTime)) {
+                        return
+                    }
+                }
             }
         }
 
-        // 2. Cobalt 웹뷰 특성상 노드가 숨겨져 있더라도 픽셀 센서로 2차 화면 검사!
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            analyzeScreenPixelSensor(currentTime)
+        // 3. 픽셀 센서로 우하단 스킵 버튼 & 좌하단 QR 카드 동시 검사 (canTakeScreenshot="true" 필수)
+        if (pixelEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (currentTime - lastClickTime >= clickCooldownMs ||
+                (qrEnabled && currentTime - lastQrDismissTime >= qrDismissCooldownMs)) {
+                val isAdContext = isCurrentScreenInAdContext(rootNode)
+                val isChatVisible = isChatUiVisible(rootNode)
+                if (!isChatVisible) {
+                    analyzeScreenPixelSensor(currentTime, isAdContext)
+                }
+            }
         }
     }
 
-    // 좌측 하단 제휴 쇼핑/QR 광고 오버레이 식별 키워드
     private val qrShoppingKeywords = listOf(
         "수수료",
         "수수료 지급",
@@ -125,7 +179,6 @@ class TvAdSkipService : AccessibilityService() {
         "상품"
     )
 
-    // QR 광고 닫기 버튼 키워드
     private val qrCloseKeywords = listOf(
         "닫기",
         "광고 닫기",
@@ -135,7 +188,6 @@ class TvAdSkipService : AccessibilityService() {
         "x"
     )
 
-    // 쇼츠 진입 시 캐스팅 전송 해제 팝업 자동 승인 키워드
     private val disconnectDialogKeywords = listOf(
         "연결을 해제",
         "연결해제",
@@ -164,14 +216,17 @@ class TvAdSkipService : AccessibilityService() {
         "OK"
     )
 
-    // 광고 건너뛰기 감지 키워드 목록
     private val skipKeywords = listOf(
         "건너뛰기",
+        "광고 건너뛰기",
+        "광고 건너뛰기 버튼",
+        "광고 모두 건너뛰기",
+        "모두 건너뛰기",
         "Skip",
         "Skip Ad",
         "Skip Ads",
-        "광고 건너뛰기",
-        "광고 건너뛰기 버튼"
+        "Skip ad",
+        "Skip ads"
     )
 
     private val countdownKeywords = listOf(
@@ -180,15 +235,21 @@ class TvAdSkipService : AccessibilityService() {
         "초후",
         "초뒤",
         "남음",
+        "원본 영상",
+        "영상이 곧",
+        "재생됩니다",
         "seconds",
-        "sec"
+        "sec",
+        " in "
     )
 
     private val knownSkipViewIds = listOf(
         "com.google.android.youtube.tv:id/skip_ad_button",
         "com.google.android.youtube:id/skip_ad_button",
         "com.google.android.youtube.tv:id/ad_skip_button",
-        "com.google.android.youtube:id/ad_skip_button"
+        "com.google.android.youtube:id/ad_skip_button",
+        "com.google.android.youtube.tv:id/skip_ad_button_container",
+        "com.google.android.youtube:id/skip_ad_button_container"
     )
 
     override fun onServiceConnected() {
@@ -199,6 +260,7 @@ class TvAdSkipService : AccessibilityService() {
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         Log.i(TAG, "TvAdSkipService connected and listening.")
         AppLogger.i(TAG, "TvAdSkipService connected and listening.")
+        ensureLoungeServiceAlive()
         startVisualSentinelLoop()
     }
 
@@ -209,7 +271,6 @@ class TvAdSkipService : AccessibilityService() {
         val rootNode = rootInActiveWindow
         val activePkg = rootNode?.packageName?.toString() ?: ""
 
-        // 1. 홈 화면(launcher), 설정(settings) 등 시스템 메뉴 블랙리스트 원천 차단 (홈화면 날뜀 100% 방지)
         val isBlacklisted = pkgName.contains("launcher", ignoreCase = true) ||
                             pkgName.contains("settings", ignoreCase = true) ||
                             pkgName.contains("setupwraith", ignoreCase = true) ||
@@ -220,7 +281,6 @@ class TvAdSkipService : AccessibilityService() {
             return
         }
 
-        // 2. 유튜브 관련 패키지이거나 전체화면 오버레이(android) 컨텍스트일 때 통과
         val isYouTubeContext = pkgName.contains("youtube", ignoreCase = true) ||
                                activePkg.contains("youtube", ignoreCase = true) ||
                                pkgName == "android" || activePkg == "android"
@@ -235,7 +295,6 @@ class TvAdSkipService : AccessibilityService() {
         }
 
         try {
-            // 0. 쇼츠 진입 시 나타나는 캐스팅 전송 해제 팝업 자동 승인
             val shortsAutoDismiss = prefs.getBoolean(KEY_SHORTS_AUTO_DISMISS, true)
             if (shortsAutoDismiss && rootNode != null) {
                 if (checkAndDismissShortsDialog(rootNode, currentTime)) {
@@ -243,7 +302,6 @@ class TvAdSkipService : AccessibilityService() {
                 }
             }
 
-            // 0-1. 본 영상 시청 중 좌측 하단 QR 제휴 쇼핑 광고 오버레이 자동 닫기
             val qrAdAutoDismiss = prefs.getBoolean(KEY_QR_AD_AUTO_DISMISS, true)
             if (qrAdAutoDismiss && rootNode != null) {
                 if (checkAndDismissQrAdOverlay(rootNode, currentTime)) {
@@ -251,7 +309,6 @@ class TvAdSkipService : AccessibilityService() {
                 }
             }
 
-            // 1. 활성 창 및 전체 창에서 표준 접근성 노드 탐색
             var clicked = false
             if (rootNode != null) {
                 clicked = processNodeTree(rootNode, currentTime)
@@ -269,12 +326,12 @@ class TvAdSkipService : AccessibilityService() {
 
             if (clicked) return
 
-            // 2. 컴퓨터 비전 픽셀 센서 및 좌표 클릭은 오직 "실제 광고 상황" 또는 "QR 쇼핑 광고 활성화 모드"일 때 허용!
             val isAdContext = isCurrentScreenInAdContext(rootNode)
-            if (isAdContext || qrAdAutoDismiss) {
+            val isChatVisible = isChatUiVisible(rootNode)
+            if (!isChatVisible && (isAdContext || qrAdAutoDismiss)) {
                 val pixelSensorEnabled = prefs.getBoolean(KEY_PIXEL_SENSOR_ENABLED, true)
                 if (pixelSensorEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    analyzeScreenPixelSensor(currentTime)
+                    analyzeScreenPixelSensor(currentTime, isAdContext)
                 } else if (isAdContext) {
                     val cobaltEnabled = prefs.getBoolean(KEY_COBALT_CLICK_ENABLED, false)
                     if (cobaltEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -288,8 +345,17 @@ class TvAdSkipService : AccessibilityService() {
         }
     }
 
+    private fun isChatUiVisible(root: AccessibilityNodeInfo?): Boolean {
+        if (root == null) return false
+        val chatKeywords = listOf("채팅", "실시간 채팅", "Chat", "Live chat")
+        for (kw in chatKeywords) {
+            val nodes = root.findAccessibilityNodeInfosByText(kw)
+            if (!nodes.isNullOrEmpty()) return true
+        }
+        return false
+    }
+
     private fun isCurrentScreenInAdContext(root: AccessibilityNodeInfo?): Boolean {
-        // 1. LoungeManager에서 광고 재생 중임을 확인한 경우
         try {
             if (LoungeManager.getInstance(this).isAdPlaying) {
                 return true
@@ -298,8 +364,7 @@ class TvAdSkipService : AccessibilityService() {
 
         if (root == null) return false
 
-        // 2. 화면 노드 트리에 광고 관련 키워드가 실제로 존재하는지 검사
-        val adKeywords = listOf("광고", "Ad", "Sponsored", "스폰서", "광고 정보", "초 후", "초 뒤", "건너뛰기")
+        val adKeywords = listOf("광고", "Ad", "Sponsored", "스폰서", "광고 정보", "초 후", "초 뒤", "건너뛰기", "Skip")
         for (kw in adKeywords) {
             val nodes = root.findAccessibilityNodeInfosByText(kw)
             if (!nodes.isNullOrEmpty()) {
@@ -317,24 +382,8 @@ class TvAdSkipService : AccessibilityService() {
         return false
     }
 
-    private fun isCurrentScreenInQrAdContext(root: AccessibilityNodeInfo?): Boolean {
-        if (root == null) return false
-        for (kw in qrShoppingKeywords) {
-            val nodes = root.findAccessibilityNodeInfosByText(kw)
-            if (!nodes.isNullOrEmpty()) {
-                return true
-            }
-        }
-        return false
-    }
-
     private fun checkAndDismissShortsDialog(root: AccessibilityNodeInfo, currentTime: Long): Boolean {
-        // 채팅 관련 화면이나 다이얼로그인 경우 절대 자동 승인하지 않음
-        val chatNodes = root.findAccessibilityNodeInfosByText("채팅")
-        val chatEnNodes = root.findAccessibilityNodeInfosByText("Chat")
-        if (!chatNodes.isNullOrEmpty() || !chatEnNodes.isNullOrEmpty()) {
-            return false
-        }
+        if (isChatUiVisible(root)) return false
 
         var hasDisconnectPrompt = false
         for (kw in disconnectDialogKeywords) {
@@ -375,7 +424,6 @@ class TvAdSkipService : AccessibilityService() {
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
 
-        // 1. 화면에 QR 쇼핑 광고 고유 텍스트가 존재하는지 탐색
         var qrAdDetected = false
 
         for (kw in qrShoppingKeywords) {
@@ -384,7 +432,6 @@ class TvAdSkipService : AccessibilityService() {
                 for (node in nodes) {
                     val rect = Rect()
                     node.getBoundsInScreen(rect)
-                    // 화면 좌측 영역(가로 60% 이내)에 위치하는지 검증
                     if (rect.isEmpty || rect.centerX() < screenWidth * 0.6f) {
                         qrAdDetected = true
                         break
@@ -401,14 +448,12 @@ class TvAdSkipService : AccessibilityService() {
         Log.i(TAG, "🎯 Detected QR Shopping Ad Overlay! Searching for close button...")
         AppLogger.i(TAG, "🎯 Detected QR Shopping Ad Overlay! Searching for close button...")
 
-        // 2. 명시적인 '닫기' / 'X' 버튼 노드가 접근성 트리에 존재하는지 확인
         for (closeKw in qrCloseKeywords) {
             val btnNodes = root.findAccessibilityNodeInfosByText(closeKw)
             if (!btnNodes.isNullOrEmpty()) {
                 for (btnNode in btnNodes) {
                     val rect = Rect()
                     btnNode.getBoundsInScreen(rect)
-                    // 화면 좌측 하단(가로 50% 이내, 세로 50% 이상)에 위치하는지 확인
                     if (rect.isEmpty || (rect.centerX() < screenWidth * 0.5f && rect.centerY() > screenHeight * 0.5f)) {
                         if (tryPerformClick(btnNode)) {
                             onQrAdDismissed(currentTime, "Close Node ($closeKw)")
@@ -419,40 +464,44 @@ class TvAdSkipService : AccessibilityService() {
             }
         }
 
-        // 3. Cobalt 웹뷰 특성상 'X' 버튼이 접근성 노드로 잡히지 않는 경우:
-        // 정밀 실측 좌표(X: 12.4%, Y: 89.3%) 2단계 연속 터치 제스처 발사!
-        dismissQrShoppingOverlay(screenWidth, screenHeight, currentTime, "Accessibility Keyword Fallback")
+        dismissQrShoppingOverlay(screenWidth, screenHeight, currentTime, null, "Accessibility Keyword Fallback")
         return true
     }
 
-    private fun dismissQrShoppingOverlay(width: Int, height: Int, currentTime: Long, triggerInfo: String) {
+    /**
+     * 좌측 하단 QR 쇼핑 오버레이 닫기:
+     * ⚠️ 주의: 리모컨 OK(ENTER)를 누르면 화면이 반으로 갈라지며 우측 광고 상세창이 열리므로
+     * 절대 ENTER 키는 보내지 않고, 오직 X 버튼 화면 좌표(동적 계산 좌표 및 12.4%, 89.3%)에만 터치 제스처 발사!
+     */
+    private fun dismissQrShoppingOverlay(
+        width: Int,
+        height: Int,
+        currentTime: Long,
+        dynamicTargetX: Float?,
+        triggerInfo: String
+    ) {
         lastQrDismissTime = currentTime
         lastClickTime = currentTime
 
-        // 16:9 TV 화면 정밀 실측 타깃 좌표: X = 12.4% (0.124f), Y = 89.3% (0.893f)
-        val targetX = width * 0.124f
+        val targetX = dynamicTargetX ?: (width * 0.124f)
         val targetY = height * 0.893f
 
         Log.i(TAG, "🎯 [QR Shopping Ad] Dismissing overlay! ($triggerInfo) Target: ($targetX, $targetY)")
         AppLogger.i(TAG, "🎯 [QR Shopping Ad] Dismissing overlay! ($triggerInfo) Target: ($targetX, $targetY)")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // 1차 탭: X 버튼 중심점 타격
             clickAtCoordinates(targetX, targetY)
-
-            // 2차 탭: 120ms 후 중심점 재타격 (Cobalt 웹뷰 터치 씹힘 원천 방지)
             mainHandler.postDelayed({
                 if (isServiceRunning) {
-                    Log.d(TAG, "🎯 [QR Shopping Ad] 2nd confirm tap at ($targetX, $targetY)")
                     clickAtCoordinates(targetX, targetY)
                 }
-            }, 120L)
+            }, 130L)
         }
 
         val showToast = prefs.getBoolean(KEY_SHOW_TOAST, true)
         if (showToast) {
             mainHandler.post {
-                Toast.makeText(this, "🎯 [쇼핑 광고] QR 코드 광고 닫기 완료", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "🎯 [쇼핑 광고] QR 코드 광고 감지 및 닫기 실행", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -503,7 +552,45 @@ class TvAdSkipService : AccessibilityService() {
             }
         }
 
+        val recursiveMatch = findSkipNodeRecursive(root, 0)
+        if (recursiveMatch != null) {
+            if (tryPerformClick(recursiveMatch)) {
+                onAdSkipped(currentTime, "Recursive Node Match")
+                return true
+            }
+        }
+
         return false
+    }
+
+    private fun findSkipNodeRecursive(node: AccessibilityNodeInfo?, depth: Int): AccessibilityNodeInfo? {
+        if (node == null || depth > 25) return null
+
+        val text = node.text?.toString()?.trim() ?: ""
+        val desc = node.contentDescription?.toString()?.trim() ?: ""
+        val viewId = node.viewIdResourceName ?: ""
+
+        if (viewId.contains("skip_ad", ignoreCase = true) || viewId.contains("ad_skip", ignoreCase = true)) {
+            if (!isCountdownText(text) && !isCountdownText(desc)) {
+                return node
+            }
+        }
+
+        val matchesSkipText = skipKeywords.any { kw ->
+            text.contains(kw, ignoreCase = true) || desc.contains(kw, ignoreCase = true)
+        }
+        if (matchesSkipText && !isCountdownText(text) && !isCountdownText(desc)) {
+            return node
+        }
+
+        val childCount = node.childCount
+        for (i in 0 until childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = findSkipNodeRecursive(child, depth + 1)
+            if (found != null) return found
+        }
+
+        return null
     }
 
     private fun isCountdownText(text: String): Boolean {
@@ -516,59 +603,84 @@ class TvAdSkipService : AccessibilityService() {
 
         var executed = false
 
-        // 1. D-PAD 접근성 포커스 사전 부여 시도
         try {
+            node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
             node.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
+            node.performAction(AccessibilityNodeInfo.ACTION_SELECT)
         } catch (_: Exception) {}
 
-        // 2. 표준 접근성 ACTION_CLICK 시도
         var current: AccessibilityNodeInfo? = node
         var depth = 0
-        while (current != null && depth < 5) {
-            if (current.isClickable) {
-                val clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                if (clicked) {
-                    Log.d(TAG, "Clicked node via ACTION_CLICK at depth $depth")
-                    executed = true
-                    break
+        while (current != null && depth < 6) {
+            try {
+                current.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                if (current.isClickable || depth == 0) {
+                    val clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    if (clicked) {
+                        Log.d(TAG, "Clicked node via ACTION_CLICK at depth $depth")
+                        executed = true
+                        if (current.isClickable) break
+                    }
                 }
-            }
+            } catch (_: Exception) {}
             current = current.parent
             depth++
         }
 
-        // 3. Cobalt 웹뷰 필수 연동: 화면 터치 제스처 병행 실행 (Cobalt의 ACTION_CLICK 무시 원천 차단)
+        // Lounge의 순수 skipAd 전용 명령 동시 발송 (우측 상세창을 여는 ENTER는 보내지 않음)
+        try {
+            LoungeManager.getInstance(this).sendSkipAdCommand()
+        } catch (_: Exception) {}
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val displayMetrics: DisplayMetrics = resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
+
             val rect = Rect()
             node.getBoundsInScreen(rect)
-            if (rect.width() > 0 && rect.height() > 0) {
-                val centerX = rect.centerX().toFloat()
-                val centerY = rect.centerY().toFloat()
-                Log.d(TAG, "Injecting click gesture at ($centerX, $centerY)")
-                clickAtCoordinates(centerX, centerY)
-                executed = true
+
+            val (targetX, targetY) = if (rect.width() > 10 && rect.height() > 10 &&
+                rect.centerX() > screenWidth * 0.5f && rect.centerY() > screenHeight * 0.5f) {
+                Pair(rect.centerX().toFloat(), rect.centerY().toFloat())
             } else {
-                // 웹뷰 가상 노드로 rect가 비어있는 경우 우하단 고정 스킵 좌표로 터치 제스처 발사
-                val displayMetrics: DisplayMetrics = resources.displayMetrics
-                val targetX = displayMetrics.widthPixels * prefs.getFloat(KEY_CUSTOM_X_PERCENT, 0.895f)
-                val targetY = displayMetrics.heightPixels * prefs.getFloat(KEY_CUSTOM_Y_PERCENT, 0.895f)
-                Log.d(TAG, "Virtual node fallback click at ($targetX, $targetY)")
-                clickAtCoordinates(targetX, targetY)
-                executed = true
+                Pair(
+                    screenWidth * prefs.getFloat(KEY_CUSTOM_X_PERCENT, 0.895f),
+                    screenHeight * prefs.getFloat(KEY_CUSTOM_Y_PERCENT, 0.895f)
+                )
             }
+
+            Log.d(TAG, "Injecting 2-step skip click gesture at ($targetX, $targetY)")
+            performDoubleTapSkipGesture(targetX, targetY)
+            executed = true
         }
 
         return executed
     }
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.N)
+    private fun performDoubleTapSkipGesture(targetX: Float, targetY: Float) {
+        clickAtCoordinates(targetX, targetY)
+        mainHandler.postDelayed({
+            if (isServiceRunning) {
+                Log.d(TAG, "⚡ [Skip 2nd Tap] Confirming skip click at ($targetX, $targetY)")
+                clickAtCoordinates(targetX, targetY)
+            }
+        }, 130L)
+    }
+
     /**
-     * [컴퓨터 비전 픽셀 센서]: 우하단 영역의 실제 색상을 검사하여
-     * "흰색 바탕 검은 글씨" 건너뛰기 버튼이 눈에 보일 때만 핀포인트 클릭 실행
+     * [컴퓨터 비전 픽셀 센서]:
+     * ⚠️ accessibility_service_config.xml에 android:canTakeScreenshot="true" 필수!
+     * 또한 안드로이드 11/12의 캡처 최소 주기 제한(ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT = 3)을 준수하기 위해 1.15초 쿨다운 적용
      */
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
-    private fun analyzeScreenPixelSensor(currentTime: Long) {
+    private fun analyzeScreenPixelSensor(currentTime: Long, isAdContext: Boolean) {
         if (isAnalyzingScreenshot) return
+        if (currentTime - lastScreenshotTime < minScreenshotIntervalMs) return
+
         isAnalyzingScreenshot = true
+        lastScreenshotTime = currentTime
 
         takeScreenshot(Display.DEFAULT_DISPLAY, applicationContext.mainExecutor, object : TakeScreenshotCallback {
             override fun onSuccess(screenshotResult: ScreenshotResult) {
@@ -581,13 +693,15 @@ class TvAdSkipService : AccessibilityService() {
                     screenshotResult.hardwareBuffer.close()
 
                     if (bitmap == null) {
+                        AppLogger.w(TAG, "takeScreenshot returned null bitmap")
                         isAnalyzingScreenshot = false
                         return
                     }
 
-                    inspectBitmapAndTrigger(bitmap, currentTime)
+                    inspectBitmapAndTrigger(bitmap, currentTime, isAdContext)
                 } catch (e: Exception) {
                     Log.e(TAG, "Screenshot inspection error", e)
+                    AppLogger.e(TAG, "Screenshot inspection error", e)
                 } finally {
                     isAnalyzingScreenshot = false
                 }
@@ -595,106 +709,153 @@ class TvAdSkipService : AccessibilityService() {
 
             override fun onFailure(errorCode: Int) {
                 Log.w(TAG, "takeScreenshot failed: errorCode=$errorCode")
+                // errorCode 2 = ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS (canTakeScreenshot 누락 시 발생)
+                // errorCode 3 = ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT
+                if (errorCode != 3) {
+                    AppLogger.w(TAG, "⚠️ takeScreenshot failed: errorCode=$errorCode")
+                }
                 isAnalyzingScreenshot = false
             }
         })
     }
 
-    private fun inspectBitmapAndTrigger(bitmap: Bitmap, currentTime: Long) {
+    private fun inspectBitmapAndTrigger(bitmap: Bitmap, currentTime: Long, isAdContext: Boolean) {
         val width = bitmap.width
         val height = bitmap.height
 
-        // 우하단 타깃 영역 ROI (가로 85~96%, 세로 85~95%)
-        val startX = (width * 0.85f).toInt()
+        // 해상도(720p / 1080p / 4K)에 상관없이 항상 480x270 격자 기준으로 정규화된 샘플링 스텝 사용
+        val stepX = max(1, width / 480)
+        val stepY = max(1, height / 270)
+
+        // 우하단 스킵 버튼 탐색 ROI (가로 78~96%, 세로 78~94%)
+        val startX = (width * 0.78f).toInt()
         val endX = (width * 0.96f).toInt()
-        val startY = (height * 0.85f).toInt()
-        val endY = (height * 0.95f).toInt()
+        val startY = (height * 0.78f).toInt()
+        val endY = (height * 0.94f).toInt()
 
         var whitePixels = 0
         var yellowPixels = 0
         var blackPixels = 0
-        val step = 4 // 4픽셀 간격 초고속 샘플링
+        var sumWhiteX = 0L
+        var sumWhiteY = 0L
 
-        for (x in startX until endX step step) {
-            for (y in startY until endY step step) {
+        var x = startX
+        while (x < endX) {
+            var y = startY
+            while (y < endY) {
                 val pixel = bitmap.getPixel(x, y)
                 val r = Color.red(pixel)
                 val g = Color.green(pixel)
                 val b = Color.blue(pixel)
+                val maxCh = max(r, max(g, b))
+                val minCh = min(r, min(g, b))
 
-                // 1. 노란색 카운터 검출 (#FFD600 계열)
                 if (r > 190 && g > 150 && b < 80) {
                     yellowPixels++
-                }
-                // 2. 흰색 버튼 배경 검출 (#FFFFFF 계열)
-                else if (r > 225 && g > 225 && b > 225) {
+                } else if (r > 195 && g > 195 && b > 195 && (maxCh - minCh) <= 25) {
                     whitePixels++
-                }
-                // 3. 검은색 텍스트 검출 (#000000 계열)
-                else if (r < 60 && g < 60 && b < 60) {
+                    sumWhiteX += x
+                    sumWhiteY += y
+                } else if (r < 75 && g < 75 && b < 75) {
                     blackPixels++
                 }
+                y += stepY
             }
+            x += stepX
         }
 
-        // 좌측 하단 QR 제휴 쇼핑 카드 정밀 ROI 샘플링 (X: 3~22%, Y: 45~85%)
+        // 좌측 하단 QR 제휴 쇼핑 카드 정밀 ROI 샘플링 (X: 3~35%, Y: 42~85%)
         val qrAutoDismiss = prefs.getBoolean(KEY_QR_AD_AUTO_DISMISS, true)
         var qrWhitePixels = 0
         var qrDarkPixels = 0
+        var sumQrWhiteX = 0L
 
         if (qrAutoDismiss && currentTime - lastQrDismissTime >= qrDismissCooldownMs) {
             val qrStartX = (width * 0.03f).toInt()
-            val qrEndX = (width * 0.22f).toInt()
-            val qrStartY = (height * 0.45f).toInt()
+            val qrEndX = (width * 0.35f).toInt()
+            val qrStartY = (height * 0.42f).toInt()
             val qrEndY = (height * 0.85f).toInt()
 
-            for (x in qrStartX until qrEndX step step) {
-                for (y in qrStartY until qrEndY step step) {
-                    val pixel = bitmap.getPixel(x, y)
+            var qx = qrStartX
+            while (qx < qrEndX) {
+                var qy = qrStartY
+                while (qy < qrEndY) {
+                    val pixel = bitmap.getPixel(qx, qy)
                     val r = Color.red(pixel)
                     val g = Color.green(pixel)
                     val b = Color.blue(pixel)
+                    val maxCh = max(r, max(g, b))
+                    val minCh = min(r, min(g, b))
 
-                    // 순백색 카드 배경 (#FFFFFF 계열)
-                    if (r > 205 && g > 205 && b > 205) {
+                    if (r > 200 && g > 200 && b > 200 && (maxCh - minCh) <= 20) {
                         qrWhitePixels++
-                    }
-                    // 검은색 QR 도트 패턴 및 글자 (#000000 계열)
-                    else if (r < 65 && g < 65 && b < 65) {
+                        sumQrWhiteX += qx
+                    } else if (r < 65 && g < 65 && b < 65) {
                         qrDarkPixels++
                     }
+                    qy += stepY
                 }
+                qx += stepX
             }
         }
 
         bitmap.recycle()
 
-        Log.d(TAG, "Pixel Sensor ROI: White=$whitePixels, Yellow=$yellowPixels, Black=$blackPixels, QR_White=$qrWhitePixels, QR_Dark=$qrDarkPixels")
+        Log.d(TAG, "Pixel Sensor ROI (${width}x${height}): White=$whitePixels, Yellow=$yellowPixels, Black=$blackPixels (isAd=$isAdContext), QR_White=$qrWhitePixels, QR_Dark=$qrDarkPixels")
 
-        // 0. 좌측 하단 QR 제휴 쇼핑 카드 검출 시 하단 X 버튼 2단계 정밀 타격!
-        if (qrAutoDismiss && qrWhitePixels > 80 && qrDarkPixels > 12 && currentTime - lastQrDismissTime >= qrDismissCooldownMs) {
-            dismissQrShoppingOverlay(width, height, currentTime, "Pixel Sensor (White: $qrWhitePixels, Dark: $qrDarkPixels)")
+        // 0. 좌측 하단 QR 제휴 쇼핑 카드 검출 시 하단 X 버튼 정밀 타격!
+        // QR 카드의 가로 중심점(sumQrWhiteX / qrWhitePixels)이 계산되면 그 중심 하단(Y: 89.3%)을 타격하고, 기본값은 12.4% 사용
+        if (qrAutoDismiss && qrWhitePixels in 70..1800 && qrDarkPixels >= 12 && currentTime - lastQrDismissTime >= qrDismissCooldownMs) {
+            val qrCenterX = (sumQrWhiteX.toFloat() / qrWhitePixels)
+            val dynamicX = if (qrCenterX in (width * 0.08f)..(width * 0.28f)) qrCenterX else (width * 0.124f)
+            dismissQrShoppingOverlay(
+                width,
+                height,
+                currentTime,
+                dynamicX,
+                "Pixel Sensor (QR_W: $qrWhitePixels, QR_D: $qrDarkPixels)"
+            )
             return
         }
 
-        // 1. 최우선 감지: 흰색 버튼 픽셀 덩어리가 출현하고 검은색 텍스트가 함께 감지된 경우!
-        // 영상 배경의 노란색 픽셀 유무와 무관하게 흰색 버튼이 감지되었으면 즉시 클릭 실행!
-        if (whitePixels > 60 && blackPixels > 6) {
-            val xPercent = prefs.getFloat(KEY_CUSTOM_X_PERCENT, 0.895f)
-            val yPercent = prefs.getFloat(KEY_CUSTOM_Y_PERCENT, 0.895f)
-            val targetX = width * xPercent
-            val targetY = height * yPercent
+        if (currentTime - lastClickTime < clickCooldownMs) return
 
-            Log.i(TAG, "👁️ [Pixel Sensor] White Skip Button confirmed! Clicking at ($targetX, $targetY)")
-            AppLogger.i(TAG, "👁️ [Pixel Sensor] White Skip Button confirmed! Clicking at ($targetX, $targetY)")
+        // 1. 우하단 스킵 버튼 검출 시 무게중심 더블탭 + Lounge skipAd 동시 타격
+        val isSkipButtonDetected = if (isAdContext) {
+            whitePixels >= 40 && blackPixels >= 5
+        } else {
+            whitePixels in 50..650 && blackPixels >= 6
+        }
+
+        if (isSkipButtonDetected) {
+            val centroidX = (sumWhiteX.toFloat() / whitePixels)
+            val centroidY = (sumWhiteY.toFloat() / whitePixels)
+
+            val targetX = if (centroidX in (width * 0.78f)..(width * 0.96f)) {
+                centroidX
+            } else {
+                width * prefs.getFloat(KEY_CUSTOM_X_PERCENT, 0.895f)
+            }
+            val targetY = if (centroidY in (height * 0.78f)..(height * 0.94f)) {
+                centroidY
+            } else {
+                height * prefs.getFloat(KEY_CUSTOM_Y_PERCENT, 0.895f)
+            }
+
+            Log.i(TAG, "👁️ [Pixel Sensor] Skip Button confirmed (W:$whitePixels, B:$blackPixels)! Clicking ($targetX, $targetY)")
+            AppLogger.i(TAG, "👁️ [Pixel Sensor] Skip Button confirmed (W:$whitePixels, B:$blackPixels)! Clicking ($targetX, $targetY)")
+
+            try {
+                LoungeManager.getInstance(this).sendSkipAdCommand()
+            } catch (_: Exception) {}
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                clickAtCoordinates(targetX, targetY)
-                onAdSkipped(currentTime, "Pixel Sensor (White Button Confirmed)")
+                performDoubleTapSkipGesture(targetX, targetY)
+                onAdSkipped(currentTime, "Pixel Sensor (${targetX.toInt()}, ${targetY.toInt()})")
             }
             return
         }
 
-        // 2. 보조 가드: 흰색 버튼이 아직 없고 노란색 카운터만 돌아가고 있으면 대기
         if (yellowPixels > 25) {
             Log.d(TAG, "Yellow countdown timer active ($yellowPixels px), waiting...")
             return
@@ -712,21 +873,26 @@ class TvAdSkipService : AccessibilityService() {
         val targetX = width * xPercent
         val targetY = height * yPercent
 
-        Log.d(TAG, "Cobalt fallback click at ($targetX, $targetY)")
+        Log.d(TAG, "Cobalt fallback double-tap click at ($targetX, $targetY)")
+        try {
+            LoungeManager.getInstance(this).sendSkipAdCommand()
+        } catch (_: Exception) {}
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            clickAtCoordinates(targetX, targetY)
+            performDoubleTapSkipGesture(targetX, targetY)
             onAdSkipped(currentTime, "Cobalt Fallback")
         }
     }
 
-    /**
-     * LoungeManager 등 외부 모듈에서 스킵 가능 신호를 감지했을 때
-     * 화면 상의 스킵 버튼 위치로 즉시 물리 터치 제스처를 쏴주는 하이브리드 협공 함수
-     */
     fun triggerDirectScreenSkip() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         val currentTime = SystemClock.uptimeMillis()
         if (currentTime - lastClickTime < clickCooldownMs) return
+
+        val rootNode = rootInActiveWindow
+        if (rootNode != null && processNodeTree(rootNode, currentTime)) {
+            return
+        }
 
         val displayMetrics: DisplayMetrics = resources.displayMetrics
         val width = displayMetrics.widthPixels
@@ -736,8 +902,8 @@ class TvAdSkipService : AccessibilityService() {
         val targetX = width * xPercent
         val targetY = height * yPercent
 
-        AppLogger.i(TAG, "⚡ [Hybrid-Skip] Triggering direct screen click from external signal at ($targetX, $targetY)")
-        clickAtCoordinates(targetX, targetY)
+        AppLogger.i(TAG, "⚡ [Hybrid-Skip] Triggering 2-step direct screen click from external signal at ($targetX, $targetY)")
+        performDoubleTapSkipGesture(targetX, targetY)
         onAdSkipped(currentTime, "Hybrid External Signal")
     }
 
@@ -747,7 +913,7 @@ class TvAdSkipService : AccessibilityService() {
             moveTo(x, y)
         }
         val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(clickPath, 0L, 100L))
+            .addStroke(GestureDescription.StrokeDescription(clickPath, 0L, 90L))
             .build()
 
         dispatchGesture(gesture, object : GestureResultCallback() {
@@ -766,7 +932,6 @@ class TvAdSkipService : AccessibilityService() {
         Log.i(TAG, "Successfully skipped YouTube Ad! ($triggerInfo)")
         AppLogger.i(TAG, "🎯 [Accessibility] Successfully skipped YouTube Ad! ($triggerInfo)")
 
-        // 광고 스킵 즉시 Lounge 오디오 복원 연동!
         try {
             LoungeManager.getInstance(this).forceRestoreAudio()
         } catch (e: Exception) {
@@ -798,6 +963,5 @@ class TvAdSkipService : AccessibilityService() {
         stopVisualSentinelLoop()
         isServiceRunning = false
         instance = null
-        Log.i(TAG, "TvAdSkipService destroyed.")
     }
 }

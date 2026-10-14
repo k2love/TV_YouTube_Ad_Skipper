@@ -11,9 +11,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 class UpdateManager(private val context: Context) {
@@ -21,20 +26,58 @@ class UpdateManager(private val context: Context) {
     companion object {
         private const val TAG = "UpdateManager"
         private const val PREFS_NAME = "update_prefs"
-        private const val KEY_LAST_KNOWN_MODIFIED = "key_last_known_modified"
+        private const val KEY_LAST_KNOWN_SHA = "key_last_known_sha"
+        private const val KEY_LAST_KNOWN_ETAG = "key_last_known_etag"
         private const val KEY_LAST_KNOWN_SIZE = "key_last_known_size"
         private const val DEFAULT_APK_NAME = "TV_YouTube_Ad_Skipper.apk"
 
-        // 하드코딩된 구글 드라이브 파일 ID 및 바이패스 직다운로드 주소
-        const val HARDCODED_FILE_ID = "1MkTOnPgTiBzQ6BsZxXB9eyP9qBWusM-n"
-        const val DIRECT_DOWNLOAD_URL = "https://drive.usercontent.google.com/download?id=$HARDCODED_FILE_ID&export=download&confirm=t"
+        // GitHub 저장소 정보 (https://github.com/k2love/TV_YouTube_Ad_Skipper)
+        const val GITHUB_OWNER = "k2love"
+        const val GITHUB_REPO = "TV_YouTube_Ad_Skipper"
+        const val GITHUB_BRANCH = "main"
+
+        // GitHub 루트 경로에 업로드된 TV_YouTube_Ad_Skipper.apk 직다운로드 주소
+        const val GITHUB_RAW_APK_URL =
+            "https://raw.githubusercontent.com/$GITHUB_OWNER/$GITHUB_REPO/$GITHUB_BRANCH/$DEFAULT_APK_NAME"
+
+        // GitHub APK 파일의 최신 커밋 시각 및 SHA 조회 API (version.json 수정 없이 APK만 올려도 감지!)
+        const val GITHUB_APK_COMMITS_API_URL =
+            "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/commits?path=$DEFAULT_APK_NAME&sha=$GITHUB_BRANCH&page=1&per_page=1"
+
+        // 보조: version.json 및 GitHub Releases 주소
+        const val GITHUB_VERSION_JSON_URL =
+            "https://raw.githubusercontent.com/$GITHUB_OWNER/$GITHUB_REPO/$GITHUB_BRANCH/version.json"
+        const val GITHUB_RELEASE_LATEST_APK_URL =
+            "https://github.com/$GITHUB_OWNER/$GITHUB_REPO/releases/latest/download/$DEFAULT_APK_NAME"
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
+
+    @Volatile
+    var latestVersionCode: Int = -1
+        private set
+
+    @Volatile
+    var latestVersionName: String = ""
+        private set
+
+    @Volatile
+    var latestChangelog: String = ""
+        private set
+
+    @Volatile
+    var latestCommitSha: String = ""
+        private set
+
+    @Volatile
+    var resolvedDownloadUrl: String = GITHUB_RAW_APK_URL
+        private set
 
     fun getCurrentVersionCode(): Int {
         return try {
@@ -46,146 +89,266 @@ class UpdateManager(private val context: Context) {
                 packageInfo.versionCode
             }
         } catch (e: Exception) {
-            52
+            65
         }
     }
 
     fun getCurrentVersionName(): String {
         return try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.5.2"
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.6.5"
         } catch (e: Exception) {
-            "0.5.2"
+            "0.6.5"
         }
     }
 
     /**
-     * 원격 구글 드라이브 APK의 수정 시간과 현재 설치된 앱의 설치 시간을 비교하여 새 빌드 업로드 여부 감지
+     * GitHub에 올라온 'TV_YouTube_Ad_Skipper.apk'의 업로드(커밋) 시각/해시 및 version.json을 비교하여
+     * 새 APK가 올라왔는지 자동 감지 (기존 구글 드라이브 방식과 100% 동일하게 APK 파일만 교체해도 감지됨)
      */
     suspend fun checkRemoteApkUpdated(): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            Log.i(TAG, "Checking remote APK metadata from: $DIRECT_DOWNLOAD_URL")
-            val request = Request.Builder()
-                .url(DIRECT_DOWNLOAD_URL)
-                .head()
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .build()
-
-            val response = client.newCall(request).execute()
-            val remoteLastModifiedStr = response.header("Last-Modified") ?: ""
-            val remoteLengthStr = response.header("Content-Length") ?: ""
-
-            // OkHttp 내장 HTTP 날짜 파서 활용
-            val remoteDate = response.headers.getDate("Last-Modified")
-            val remoteTimeMs = remoteDate?.time ?: 0L
-            val remoteSize = remoteLengthStr.toLongOrNull() ?: 0L
-            response.close()
-
-            if (remoteLastModifiedStr.isEmpty() && remoteLengthStr.isEmpty()) {
-                return@withContext Result.success(false)
-            }
-
-            // 현재 TV에 설치된 앱의 설치/업데이트 완료 시각
+            val currentCode = getCurrentVersionCode()
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             val localInstalledTime = packageInfo.lastUpdateTime
 
-            val savedModified = prefs.getString(KEY_LAST_KNOWN_MODIFIED, "") ?: ""
-            val savedSize = prefs.getString(KEY_LAST_KNOWN_SIZE, "") ?: ""
+            // 1. GitHub Commits API로 'TV_YouTube_Ad_Skipper.apk' 파일의 실제 업로드 시각 & 커밋 SHA 확인
+            val commitsReq = Request.Builder()
+                .url("$GITHUB_APK_COMMITS_API_URL&t=${System.currentTimeMillis()}")
+                .get()
+                .header("Accept", "application/vnd.github+json")
+                .header("Cache-Control", "no-cache")
+                .header("User-Agent", "TV-YouTube-Ad-Skipper-Updater")
+                .build()
 
-            Log.i(TAG, "RemoteTime: $remoteTimeMs vs LocalInstallTime: $localInstalledTime | Saved: [$savedModified, $savedSize] vs Remote: [$remoteLastModifiedStr, $remoteLengthStr]")
+            client.newCall(commitsReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val bodyStr = resp.body?.string() ?: ""
+                    if (bodyStr.isNotEmpty()) {
+                        val arr = JSONArray(bodyStr)
+                        if (arr.length() > 0) {
+                            val commitEntry = arr.getJSONObject(0)
+                            val sha = commitEntry.optString("sha", "")
+                            val commitObj = commitEntry.optJSONObject("commit")
+                            val message = commitObj?.optString("message", "") ?: ""
+                            val dateStr = commitObj?.optJSONObject("committer")?.optString("date", "") ?: ""
 
-            // 1. 구글 드라이브 파일의 수정 시각이 현재 설치된 앱의 설치 시각보다 60초 이상 최신인 경우 새 빌드로 판단!
-            val isNewerThanInstall = (remoteTimeMs > 0 && localInstalledTime > 0) && (remoteTimeMs > localInstalledTime + 60_000L)
+                            val remoteTimeMs = parseIso8601ToMillis(dateStr)
+                            val savedSha = prefs.getString(KEY_LAST_KNOWN_SHA, "") ?: ""
 
-            // 2. 이전에 이미 다운로드하여 기록해둔 헤더와 비교 (새 파일 업로드로 헤더가 변경된 경우)
-            val isHeaderChanged = savedModified.isNotEmpty() && (savedModified != remoteLastModifiedStr || (savedSize.isNotEmpty() && savedSize != remoteLengthStr))
+                            latestCommitSha = sha
+                            if (message.isNotEmpty()) {
+                                latestChangelog = message
+                            }
+                            resolvedDownloadUrl = GITHUB_RAW_APK_URL
 
-            val isUpdated = isNewerThanInstall || isHeaderChanged
+                            // ① GitHub의 APK 커밋 시각이 현재 TV 앱 설치 시각보다 60초 이상 최신이거나
+                            // ② 이전에 기록된 커밋 SHA와 다른 새 커밋이 올라온 경우 새 업데이트로 판정!
+                            val isNewerThanInstall = (remoteTimeMs > 0 && localInstalledTime > 0) &&
+                                    (remoteTimeMs > localInstalledTime + 60_000L)
+                            val isShaChanged = savedSha.isNotEmpty() && sha.isNotEmpty() && savedSha != sha
 
-            // 현재 설치본이 최신 상태라면 헤더를 동기화하여 중복 감지 방지
-            if (!isUpdated) {
-                prefs.edit()
-                    .putString(KEY_LAST_KNOWN_MODIFIED, remoteLastModifiedStr)
-                    .putString(KEY_LAST_KNOWN_SIZE, remoteLengthStr)
-                    .apply()
+                            Log.i(TAG, "GitHub APK Commit check: remoteTime=$remoteTimeMs vs localInstall=$localInstalledTime, sha=$sha vs savedSha=$savedSha")
+
+                            if (isNewerThanInstall || isShaChanged) {
+                                return@withContext Result.success(true)
+                            }
+
+                            if (savedSha.isEmpty() && sha.isNotEmpty()) {
+                                prefs.edit().putString(KEY_LAST_KNOWN_SHA, sha).apply()
+                            }
+                        }
+                    }
+                }
             }
 
-            Result.success(isUpdated)
+            // 2. 보조: GitHub version.json의 versionCode 비교
+            val versionReq = Request.Builder()
+                .url("$GITHUB_VERSION_JSON_URL?t=${System.currentTimeMillis()}")
+                .get()
+                .header("Cache-Control", "no-cache")
+                .header("User-Agent", "TV-YouTube-Ad-Skipper-Updater")
+                .build()
+
+            client.newCall(versionReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val bodyStr = resp.body?.string() ?: ""
+                    if (bodyStr.isNotEmpty()) {
+                        val json = JSONObject(bodyStr)
+                        val remoteCode = json.optInt("versionCode", -1)
+                        val remoteName = json.optString("versionName", "")
+                        val changelog = json.optString("changelog", "")
+
+                        latestVersionCode = remoteCode
+                        latestVersionName = remoteName
+                        if (changelog.isNotEmpty()) {
+                            latestChangelog = changelog
+                        }
+
+                        if (remoteCode > currentCode) {
+                            resolvedDownloadUrl = GITHUB_RAW_APK_URL
+                            return@withContext Result.success(true)
+                        }
+                    }
+                }
+            }
+
+            // 3. 보조: GitHub Raw APK의 ETag / Content-Length 헤더 변경 확인
+            val isHeaderChanged = checkRawApkHeaderChanged(GITHUB_RAW_APK_URL) ||
+                    checkRawApkHeaderChanged(GITHUB_RELEASE_LATEST_APK_URL)
+
+            Result.success(isHeaderChanged)
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking remote APK update", e)
+            Log.e(TAG, "Error checking GitHub APK update", e)
             Result.failure(e)
         }
     }
 
+    private fun parseIso8601ToMillis(isoDate: String): Long {
+        if (isoDate.isEmpty()) return 0L
+        return try {
+            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            sdf.parse(isoDate)?.time ?: 0L
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    private fun checkRawApkHeaderChanged(apkUrl: String): Boolean {
+        return try {
+            val request = Request.Builder()
+                .url("$apkUrl?t=${System.currentTimeMillis()}")
+                .head()
+                .header("Cache-Control", "no-cache")
+                .header("User-Agent", "TV-YouTube-Ad-Skipper-Updater")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return false
+
+                val remoteEtag = response.header("ETag") ?: response.header("Last-Modified") ?: ""
+                val remoteLength = response.header("Content-Length") ?: ""
+                if (remoteEtag.isEmpty() && remoteLength.isEmpty()) return false
+
+                val savedEtag = prefs.getString(KEY_LAST_KNOWN_ETAG, "") ?: ""
+                val savedSize = prefs.getString(KEY_LAST_KNOWN_SIZE, "") ?: ""
+
+                val isChanged = savedEtag.isNotEmpty() &&
+                        (savedEtag != remoteEtag || (savedSize.isNotEmpty() && savedSize != remoteLength))
+
+                if (isChanged) {
+                    resolvedDownloadUrl = apkUrl
+                    return true
+                }
+
+                if (savedEtag.isEmpty()) {
+                    prefs.edit()
+                        .putString(KEY_LAST_KNOWN_ETAG, remoteEtag)
+                        .putString(KEY_LAST_KNOWN_SIZE, remoteLength)
+                        .apply()
+                }
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /**
-     * 구글 드라이브에서 최신 APK 직접 다운로드
+     * GitHub에서 최신 TV_YouTube_Ad_Skipper.apk 직접 다운로드
      */
     suspend fun downloadApk(
         onProgress: (Int) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
-        try {
-            Log.i(TAG, "Downloading APK from: $DIRECT_DOWNLOAD_URL")
-            val request = Request.Builder()
-                .url(DIRECT_DOWNLOAD_URL)
-                .get()
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .build()
+        val candidateUrls = linkedSetOf(
+            "$GITHUB_RAW_APK_URL?t=${System.currentTimeMillis()}",
+            GITHUB_RELEASE_LATEST_APK_URL
+        )
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext Result.failure(Exception("APK 다운로드 실패 (HTTP ${response.code})"))
-            }
+        var lastError: Exception? = null
 
-            val remoteLastModified = response.header("Last-Modified") ?: ""
-            val remoteLength = response.header("Content-Length") ?: ""
-            val body = response.body ?: return@withContext Result.failure(Exception("다운로드 데이터가 없습니다."))
-            val contentLength = body.contentLength()
+        for (targetUrl in candidateUrls) {
+            try {
+                Log.i(TAG, "Downloading APK from GitHub: $targetUrl")
+                val request = Request.Builder()
+                    .url(targetUrl)
+                    .get()
+                    .header("Cache-Control", "no-cache")
+                    .header("User-Agent", "TV-YouTube-Ad-Skipper-Updater")
+                    .build()
 
-            val storageDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
-            val destFile = File(storageDir, DEFAULT_APK_NAME)
-            if (destFile.exists()) {
-                destFile.delete()
-            }
-
-            val inputStream: InputStream = body.byteStream()
-            val outputStream = FileOutputStream(destFile)
-
-            val buffer = ByteArray(8192)
-            var bytesRead: Int
-            var totalBytesRead = 0L
-
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                outputStream.write(buffer, 0, bytesRead)
-                totalBytesRead += bytesRead
-                if (contentLength > 0) {
-                    val progress = ((totalBytesRead * 100) / contentLength).toInt()
-                    onProgress(progress)
+                val response = client.newCall(request).execute()
+                if (!response.isSuccessful) {
+                    response.close()
+                    lastError = Exception("HTTP ${response.code}")
+                    continue
                 }
+
+                val remoteEtag = response.header("ETag") ?: response.header("Last-Modified") ?: ""
+                val remoteLength = response.header("Content-Length") ?: ""
+                val body = response.body
+                if (body == null) {
+                    response.close()
+                    lastError = Exception("다운로드 응답 데이터가 없습니다.")
+                    continue
+                }
+
+                val contentLength = body.contentLength()
+                val storageDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
+                val destFile = File(storageDir, DEFAULT_APK_NAME)
+                if (destFile.exists()) {
+                    destFile.delete()
+                }
+
+                val inputStream: InputStream = body.byteStream()
+                val outputStream = FileOutputStream(destFile)
+
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                var totalBytesRead = 0L
+
+                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    outputStream.write(buffer, 0, bytesRead)
+                    totalBytesRead += bytesRead
+                    if (contentLength > 0) {
+                        val progress = ((totalBytesRead * 100) / contentLength).toInt()
+                        onProgress(progress)
+                    }
+                }
+
+                outputStream.flush()
+                outputStream.close()
+                inputStream.close()
+                response.close()
+
+                if (destFile.length() < 100 * 1024) {
+                    destFile.delete()
+                    lastError = Exception("다운로드된 파일 크기가 비정상입니다 (${totalBytesRead} bytes).")
+                    continue
+                }
+
+                destFile.setReadable(true, false)
+
+                prefs.edit().apply {
+                    if (latestCommitSha.isNotEmpty()) putString(KEY_LAST_KNOWN_SHA, latestCommitSha)
+                    if (remoteEtag.isNotEmpty()) putString(KEY_LAST_KNOWN_ETAG, remoteEtag)
+                    if (remoteLength.isNotEmpty()) putString(KEY_LAST_KNOWN_SIZE, remoteLength)
+                    apply()
+                }
+
+                Log.i(TAG, "APK successfully downloaded from GitHub: ${destFile.absolutePath} (${destFile.length()} bytes)")
+                AppLogger.i(TAG, "APK successfully downloaded from GitHub: ${destFile.absolutePath} (${destFile.length()} bytes)")
+                return@withContext Result.success(destFile)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error downloading APK from $targetUrl", e)
+                lastError = e
             }
-
-            outputStream.flush()
-            outputStream.close()
-            inputStream.close()
-
-            destFile.setReadable(true, false)
-
-            // 다운로드 성공 시 최신 헤더 저장
-            prefs.edit()
-                .putString(KEY_LAST_KNOWN_MODIFIED, remoteLastModified)
-                .putString(KEY_LAST_KNOWN_SIZE, remoteLength)
-                .apply()
-
-            Log.i(TAG, "APK successfully downloaded to: ${destFile.absolutePath} (${destFile.length()} bytes)")
-            AppLogger.i(TAG, "APK successfully downloaded to: ${destFile.absolutePath} (${destFile.length()} bytes)")
-            Result.success(destFile)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error downloading APK", e)
-            Result.failure(e)
         }
+
+        Result.failure(lastError ?: Exception("GitHub 저장소 루트에 TV_YouTube_Ad_Skipper.apk 파일이 업로드되어 있는지 확인해 주세요."))
     }
 
-    /**
-     * 다운로드된 APK 파일 정보 확인
-     */
     fun getApkVersionInfo(apkFile: File): Pair<Int, String>? {
         return try {
             val packageInfo = context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
@@ -206,9 +369,6 @@ class UpdateManager(private val context: Context) {
         }
     }
 
-    /**
-     * 안드로이드 시스템 패키지 인스톨러 호출
-     */
     fun installApk(apkFile: File): Boolean {
         return try {
             if (!apkFile.exists() || apkFile.length() == 0L) {
@@ -232,7 +392,6 @@ class UpdateManager(private val context: Context) {
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
 
-            // 모든 관련 PackageInstaller 패키지에 명시적 읽기 권한 부여
             val resInfoList = context.packageManager.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
             for (resolveInfo in resInfoList) {
                 val pkgName = resolveInfo.activityInfo.packageName
