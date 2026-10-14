@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">TV YouTube Ad Skip Service</string>
+    <string name="accessibility_service_description">Automatically skips ads on the official YouTube TV app within 0.001 seconds when the skip timer ends.</string>
+    
+    <string name="tv_title">Android TV YouTube Official Ad Auto Skipper</string>
+    <string name="service_status_label">Accessibility Service Status:</string>
+    <string name="status_enabled">Running (Enabled)</string>
+    <string name="status_disabled">Stopped (Accessibility permission required)</string>
+    <string name="btn_open_settings">Open Accessibility Settings</string>
+    <string name="btn_test_log">Test Skip Detection / Refresh</string>
+    
+    <!-- Lounge Protocol -->
+    <string name="lounge_section_title">🎯 Official Lounge Protocol Mode (Recommended: 100% Error-Free)</string>
+    <string name="lounge_desc">Receives ad completion signals directly from Google servers via YouTube\'s official \'Link with TV code\' session, skipping within 0.001 seconds without scanning the screen.</string>
+    <string name="lounge_hint">Enter 12-digit code from YouTube Settings -> Link with TV code</string>
+    <string name="btn_pair_tv">Link TV</string>
+    <string name="btn_unpair_tv">Unlink</string>
+    <string name="lounge_status_paired">Linked (%s) - Auto-monitoring active</string>
+    <string name="lounge_status_unpaired">Not linked (Enter 12-digit code to link)</string>
+    <string name="lounge_stats">Ads Skipped: %d (Since Boot)</string>
+    <string name="lounge_stats_default">Ads Skipped: 0 (Since Boot)</string>
+    <string name="btn_reset_stats">Reset Count</string>
+    <string name="lounge_event_default">Recent Signal: Waiting</string>
+    <string name="switch_auto_mute">Hardware Auto-Mute during ads</string>
+
+    <!-- Pixel Sensor Card -->
+    <string name="pixel_sensor_title">👁️ Computer Vision Pixel Sensor (Shorts-safe visual mode)</string>
+    <string name="pixel_sensor_desc">Performs a single pinpoint click only when the white skip button appears after the yellow countdown ends. Never triggers Shorts popups.</string>
+    <string name="switch_pixel_sensor">Enable Pixel Color Sensor (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Auto-dismiss Shorts disconnect prompt (0.1s)</string>
+    <string name="switch_qr_ad_dismiss">Auto-dismiss QR affiliate shopping ad (0.1s)</string>
+
+    <!-- OTA Update Card -->
+    <string name="ota_update_title">🚀 App Version &amp; Wireless Auto Update (OTA)</string>
+    <string name="app_version_default">Current Version: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">When a new APK is released on GitHub, the app detects it on startup or you can manually check via the button below.</string>
+    <string name="btn_check_update">🔄 Check Update Now</string>
+    <string name="update_status_default">Status: Idle</string>
+
+    <!-- Runtime Log Card -->
+    <string name="runtime_log_title">📋 Runtime Event &amp; Volume / Skip Diagnostics</string>
+    <string name="runtime_log_desc">Ad detections, volume levels, pixel sensor actions, and skip clicks are automatically logged to a local file for diagnosis.</string>
+    <string name="btn_view_logs">📄 View Live Logs</string>
+    <string name="runtime_log_dialog_title">📋 Runtime Events &amp; Diagnostics (Last 150 lines)</string>
+    <string name="btn_refresh_log">Refresh</string>
+    <string name="btn_clear_log">Clear Logs</string>
+    <string name="btn_close">Close</string>
+    <string name="toast_log_cleared">Logs cleared.</string>
+
+    <string name="guide_title">Android TV / Google TV Permission Guide</string>
+    <string name="guide_text">1. Click [Open Accessibility Settings] and enable \'TV YouTube Ad Skip Service\'.\n2. On Google TV 12/13+ where sideloaded app permissions are restricted, grant permissions via ADB on PC.</string>
+    
+    <string name="adb_command_label">ADB Permission Commands:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

@@ -1,22 +1,23 @@
 # 작업 보드 (Task Board) - TV Ad Skipper
 
-## 📌 현재 스프린트: 글로벌 다국어 버전(v0.8.0) 및 구글 드라이브 로그 전송 제거
+## 📌 현재 스프린트: 한국어 기본 하네스 규칙 설정 및 GitHub 문서화 (설치법, 사용설명서, CHANGELOG)
 - **목표**: 
-  1. 구글 드라이브 로그 업로드 기능 및 UI 완전 제거 (글로벌 릴리스 및 개인정보/종속성 최소화).
-  2. 전 세계 주요 언어(영어, 한국어, 일본어, 중국어 간/번체, 힌디어, 스페인어, 프랑스어, 독일어, 러시아어, 포르투갈어, 인도네시아어, 아랍어, 베트남어) 언어팩 적용.
-  3. `TvAdSkipService.kt`의 광고 탐지 패턴(배지, 카운트다운, 스킵 텍스트, QR 닫기)에 다국어 키워드 통합.
-  4. v0.8.0 빌드, 인코딩 검증, Git 커밋/푸시 및 E: 드라이브 미러링.
+  1. 언어 우선순위(한국어 최우선/기본 -> 영어 -> 일본어 -> 스페인어 -> 힌디어 -> 중국어 -> 러시아어 -> 포르투갈어 -> 프랑스어 -> 독일어 -> 인도네시아어 -> 아랍어 -> 베트남어) 확립.
+  2. 안드로이드 리소스 기본값(`values/strings.xml`)을 한국어로 재정렬하고 영어를 `values-en`으로 분리.
+  3. 프로젝트 하네스 규칙(`CLAUDE.md`, `.agents/harness_rules.md`)에 한국어 기본 원칙 명문화.
+  4. GitHub 상세 설치 가이드(`docs/INSTALLATION.md`), 상세 사용설명서(`docs/USER_MANUAL.md`), 전체 버전 이력(`CHANGELOG.md`), 메인 대시보드(`README.md`), 영문 대시보드(`README_EN.md`) 구축.
+  5. 빌드 검증, Git 커밋/푸시 및 E: 드라이브 미러링 동기화.
 
 ---
 
 ## 📋 세부 작업 항목
-- [x] 1. 구현 계획서 작성 (`.agents/implementation_plan_global_multilingual_20261015.md`)
-- [x] 2. 구글 드라이브 로그 전송 기능 완전 제거 (`AppLogger.kt`, `MainActivity.kt`, `activity_main.xml`)
-- [x] 3. `activity_main.xml` 하드코딩 텍스트 일괄 리소스화 (`@string/...`)
-- [x] 4. 기본 영문 `res/values/strings.xml` 및 다국어 언어팩 파일 작성 (ko, ja, zh-rCN, zh-rTW, es, hi, pt, ru, fr, de, in/id, ar, vi)
-- [x] 5. `TvAdSkipService.kt` 다국어 광고 배지 및 스킵 탐지 패턴 확장
-- [x] 6. 앱 버전 상향 (`build.gradle.kts` v0.8.0 / Code 80 및 `version.json`)
-- [x] 7. Gradle 빌드 검증 (`./gradlew assembleDebug`) 및 UTF-8 인코딩 전수 점검
-- [x] 8. 루트 최신 APK (`TV_YouTube_Ad_Skipper.apk`) 생성 및 교체
-- [x] 9. 결과 리포트 작성 (`.agents/walkthrough_global_multilingual_20261015.md`)
+- [x] 1. 언어 우선순위 하네스 규칙 명문화 (`CLAUDE.md`, `.agents/harness_rules.md`)
+- [x] 2. 안드로이드 리소스 재정렬 (`values/strings.xml` 한국어 기본, `values-en/strings.xml` 영어)
+- [x] 3. 상세 설치법 작성 (`docs/INSTALLATION.md`)
+- [x] 4. 상세 사용설명서 작성 (`docs/USER_MANUAL.md`)
+- [x] 5. 버전별 업데이트 내용 요약 작성 (`CHANGELOG.md`)
+- [x] 6. 한국어 메인 대시보드 리뉴얼 (`README.md`)
+- [x] 7. 영문 메인 대시보드 작성 (`README_EN.md`)
+- [x] 8. Gradle 빌드 검증 (`./gradlew assembleDebug`)
+- [x] 9. 구현 계획서 보관 (`.agents/implementation_plan_github_docs_and_changelog_20261015.md`)
 - [ ] 10. Git 커밋 & 푸시 및 E: 드라이브 미러 저장소 동기화
