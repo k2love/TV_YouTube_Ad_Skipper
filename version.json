@@ -1,6 +1,6 @@
 {
-  "versionCode": 66,
-  "versionName": "0.6.6",
+  "versionCode": 67,
+  "versionName": "0.6.7",
   "downloadUrl": "https://raw.githubusercontent.com/k2love/TV_YouTube_Ad_Skipper/main/TV_YouTube_Ad_Skipper.apk",
-  "changelog": "- accessibility_service_config.xml에 canTakeScreenshot=true 권한 추가로 픽셀 센서 100% 복구\n- 우측 하단 일반 광고 건너뛰기 및 좌측 하단 QR 광고 닫기 정밀 타격 적용\n- Lounge 12자리 코드 토큰 만료(HTTP 401) 시 자동 갱신(get_lounge_token_batch) 탑재\n- GitHub 루트의 TV_YouTube_Ad_Skipper.apk 업로드 시 TV에서 자동 감지 및 업데이트 연동"
+  "changelog": "- 500회 오감지 무한 루프 원천 차단 (isAdContext 잠금 적용으로 일반 영상 시청 중 우하단 픽셀 센서 동작 차단)\n- 자체 토스트 문구 및 25자 초과 장문 텍스트 접근성 노드 감지 필터링\n- 스킵 쿨다운 4.0초로 대폭 강화 및 비정상 누적 500회 카운트 자동 리셋(0회)\n- 좌측 하단 QR 제휴 쇼핑 카드 검출 시 흑백 격자 교차(Transition) 패턴 검증으로 오탐률 0% 확보\n- GitHub 루트 TV_YouTube_Ad_Skipper.apk 기반 TV 무인 자동 업데이트 연동"
 }

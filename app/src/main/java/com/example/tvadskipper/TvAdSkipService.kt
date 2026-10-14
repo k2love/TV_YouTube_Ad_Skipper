@@ -47,7 +47,7 @@ class TvAdSkipService : AccessibilityService() {
     }
 
     private var lastClickTime = 0L
-    private val clickCooldownMs = 800L
+    private val clickCooldownMs = 4000L
     private var lastQrDismissTime = 0L
     private val qrDismissCooldownMs = 2500L
     private var lastScreenshotTime = 0L
@@ -258,6 +258,12 @@ class TvAdSkipService : AccessibilityService() {
         isServiceRunning = true
         instance = this
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val currentSkipCount = prefs.getInt(KEY_SKIP_COUNT, 0)
+        if (currentSkipCount >= 50) {
+            prefs.edit().putInt(KEY_SKIP_COUNT, 0).apply()
+            Log.i(TAG, "🔄 Reset abnormal skip count ($currentSkipCount -> 0)")
+            AppLogger.i(TAG, "🔄 Reset abnormal skip count ($currentSkipCount -> 0)")
+        }
         Log.i(TAG, "TvAdSkipService connected and listening.")
         AppLogger.i(TAG, "TvAdSkipService connected and listening.")
         ensureLoungeServiceAlive()
@@ -271,7 +277,9 @@ class TvAdSkipService : AccessibilityService() {
         val rootNode = rootInActiveWindow
         val activePkg = rootNode?.packageName?.toString() ?: ""
 
-        val isBlacklisted = pkgName.contains("launcher", ignoreCase = true) ||
+        val isBlacklisted = pkgName == "com.example.tvadskipper" ||
+                            activePkg == "com.example.tvadskipper" ||
+                            pkgName.contains("launcher", ignoreCase = true) ||
                             pkgName.contains("settings", ignoreCase = true) ||
                             pkgName.contains("setupwraith", ignoreCase = true) ||
                             activePkg.contains("launcher", ignoreCase = true) ||
@@ -540,7 +548,8 @@ class TvAdSkipService : AccessibilityService() {
                     val text = node.text?.toString() ?: ""
                     val contentDesc = node.contentDescription?.toString() ?: ""
 
-                    if (isCountdownText(text) || isCountdownText(contentDesc)) {
+                    if (isCountdownText(text) || isCountdownText(contentDesc) ||
+                        isInvalidSkipText(text) || isInvalidSkipText(contentDesc)) {
                         continue
                     }
 
@@ -563,12 +572,27 @@ class TvAdSkipService : AccessibilityService() {
         return false
     }
 
+    private fun isInvalidSkipText(text: String): Boolean {
+        if (text.isEmpty()) return false
+        // 스킵 버튼은 항상 짧음 (25자 초과 시 영상 제목/설명이므로 무시)
+        if (text.length > 25) return true
+        // 우리 앱 자신이 띄운 토스트 문구 배제
+        if (text.contains("자동 실행") || text.contains("회)") || text.contains("완료") || text.contains("설정")) {
+            return true
+        }
+        return false
+    }
+
     private fun findSkipNodeRecursive(node: AccessibilityNodeInfo?, depth: Int): AccessibilityNodeInfo? {
         if (node == null || depth > 25) return null
 
         val text = node.text?.toString()?.trim() ?: ""
         val desc = node.contentDescription?.toString()?.trim() ?: ""
         val viewId = node.viewIdResourceName ?: ""
+
+        if (isInvalidSkipText(text) || isInvalidSkipText(desc)) {
+            return null
+        }
 
         if (viewId.contains("skip_ad", ignoreCase = true) || viewId.contains("ad_skip", ignoreCase = true)) {
             if (!isCountdownText(text) && !isCountdownText(desc)) {
@@ -769,6 +793,7 @@ class TvAdSkipService : AccessibilityService() {
         var qrWhitePixels = 0
         var qrDarkPixels = 0
         var sumQrWhiteX = 0L
+        var qrTransitions = 0
 
         if (qrAutoDismiss && currentTime - lastQrDismissTime >= qrDismissCooldownMs) {
             val qrStartX = (width * 0.03f).toInt()
@@ -776,10 +801,11 @@ class TvAdSkipService : AccessibilityService() {
             val qrStartY = (height * 0.42f).toInt()
             val qrEndY = (height * 0.85f).toInt()
 
-            var qx = qrStartX
-            while (qx < qrEndX) {
-                var qy = qrStartY
-                while (qy < qrEndY) {
+            var qy = qrStartY
+            while (qy < qrEndY) {
+                var lastColorState = -1 // -1: none, 0: dark, 1: white
+                var qx = qrStartX
+                while (qx < qrEndX) {
                     val pixel = bitmap.getPixel(qx, qy)
                     val r = Color.red(pixel)
                     val g = Color.green(pixel)
@@ -790,22 +816,30 @@ class TvAdSkipService : AccessibilityService() {
                     if (r > 200 && g > 200 && b > 200 && (maxCh - minCh) <= 20) {
                         qrWhitePixels++
                         sumQrWhiteX += qx
+                        if (lastColorState == 0) {
+                            qrTransitions++
+                        }
+                        lastColorState = 1
                     } else if (r < 65 && g < 65 && b < 65) {
                         qrDarkPixels++
+                        if (lastColorState == 1) {
+                            qrTransitions++
+                        }
+                        lastColorState = 0
                     }
-                    qy += stepY
+                    qx += stepX
                 }
-                qx += stepX
+                qy += stepY
             }
         }
 
         bitmap.recycle()
 
-        Log.d(TAG, "Pixel Sensor ROI (${width}x${height}): White=$whitePixels, Yellow=$yellowPixels, Black=$blackPixels (isAd=$isAdContext), QR_White=$qrWhitePixels, QR_Dark=$qrDarkPixels")
+        Log.d(TAG, "Pixel Sensor ROI (${width}x${height}): White=$whitePixels, Yellow=$yellowPixels, Black=$blackPixels (isAd=$isAdContext), QR_White=$qrWhitePixels, QR_Dark=$qrDarkPixels, Trans=$qrTransitions")
 
         // 0. 좌측 하단 QR 제휴 쇼핑 카드 검출 시 하단 X 버튼 정밀 타격!
-        // QR 카드의 가로 중심점(sumQrWhiteX / qrWhitePixels)이 계산되면 그 중심 하단(Y: 89.3%)을 타격하고, 기본값은 12.4% 사용
-        if (qrAutoDismiss && qrWhitePixels in 70..1800 && qrDarkPixels >= 12 && currentTime - lastQrDismissTime >= qrDismissCooldownMs) {
+        // QR 격자 교차 패턴(qrTransitions >= 20) 및 흑백 픽셀 수 동시 충족 시에만 확정
+        if (qrAutoDismiss && qrWhitePixels in 70..1800 && qrDarkPixels >= 15 && qrTransitions >= 20 && currentTime - lastQrDismissTime >= qrDismissCooldownMs) {
             val qrCenterX = (sumQrWhiteX.toFloat() / qrWhitePixels)
             val dynamicX = if (qrCenterX in (width * 0.08f)..(width * 0.28f)) qrCenterX else (width * 0.124f)
             dismissQrShoppingOverlay(
@@ -813,19 +847,19 @@ class TvAdSkipService : AccessibilityService() {
                 height,
                 currentTime,
                 dynamicX,
-                "Pixel Sensor (QR_W: $qrWhitePixels, QR_D: $qrDarkPixels)"
+                "Pixel Sensor (QR_W: $qrWhitePixels, QR_D: $qrDarkPixels, Trans: $qrTransitions)"
             )
             return
         }
 
         if (currentTime - lastClickTime < clickCooldownMs) return
 
-        // 1. 우하단 스킵 버튼 검출 시 무게중심 더블탭 + Lounge skipAd 동시 타격
-        val isSkipButtonDetected = if (isAdContext) {
-            whitePixels >= 40 && blackPixels >= 5
-        } else {
-            whitePixels in 50..650 && blackPixels >= 6
+        // 1. 우하단 스킵 버튼 검출: ⚠️ 일반 영상 시청 중 오감지 방지를 위해 isAdContext == true 필수!
+        if (!isAdContext) {
+            return
         }
+
+        val isSkipButtonDetected = whitePixels >= 45 && blackPixels >= 5
 
         if (isSkipButtonDetected) {
             val centroidX = (sumWhiteX.toFloat() / whitePixels)
