@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">Serviço para pular anúncios do YouTube na TV</string>
+    <string name="accessibility_service_description">Pula anúncios automaticamente no aplicativo oficial do YouTube TV em 0,001s quando o cronômetro termina.</string>
+    
+    <string name="tv_title">Pular Anúncios do YouTube Oficial no Android TV</string>
+    <string name="service_status_label">Status do serviço de acessibilidade:</string>
+    <string name="status_enabled">Em execução (Ativado)</string>
+    <string name="status_disabled">Parado (Permissão de acessibilidade necessária)</string>
+    <string name="btn_open_settings">Abrir configurações de acessibilidade</string>
+    <string name="btn_test_log">Testar detecção / Atualizar</string>
+    
+    <!-- Protocolo Lounge -->
+    <string name="lounge_section_title">🎯 Modo oficial protocolo Lounge (Recomendado: 100% sem erros)</string>
+    <string name="lounge_desc">Recebe sinais de conclusão de anúncios diretamente dos servidores do Google pela sessão oficial \'Vincular com código da TV\', pulando em 0,001s sem escanear a tela.</string>
+    <string name="lounge_hint">Insira o código de 12 dígitos de Configurações do YouTube -> Vincular com código da TV</string>
+    <string name="btn_pair_tv">Vincular TV</string>
+    <string name="btn_unpair_tv">Desvincular</string>
+    <string name="lounge_status_paired">Vinculado (%s) - Monitoramento ativo</string>
+    <string name="lounge_status_unpaired">Não vinculado (Insira o código de 12 dígitos para vincular)</string>
+    <string name="lounge_stats">Anúncios pulados: %d (Desde a inicialização)</string>
+    <string name="lounge_stats_default">Anúncios pulados: 0 (Desde a inicialização)</string>
+    <string name="btn_reset_stats">Zerar contador</string>
+    <string name="lounge_event_default">Último sinal recebido: Aguardando</string>
+    <string name="switch_auto_mute">Mudo automático via hardware durante anúncios</string>
+
+    <!-- Cartão do sensor de pixels -->
+    <string name="pixel_sensor_title">👁️ Sensor de cores por visão computacional (Modo sem pop-ups do Shorts)</string>
+    <string name="pixel_sensor_desc">Executa 1 clique preciso apenas quando o botão branco de pular aparece após o fim da contagem amarela. Sem pop-ups do Shorts.</string>
+    <string name="switch_pixel_sensor">Ativar sensor de cores de pixels (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Ignorar pop-up de desconexão do Shorts automaticamente (0,1s)</string>
+    <string name="switch_qr_ad_dismiss">Fechar anúncio com QR code automaticamente (0,1s)</string>
+
+    <!-- Cartão de atualização OTA -->
+    <string name="ota_update_title">🚀 Versão do app e atualização sem fio (OTA)</string>
+    <string name="app_version_default">Versão atual: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">Quando um novo APK é lançado no GitHub, o app detecta ao iniciar ou você pode verificar manualmente pelo botão abaixo.</string>
+    <string name="btn_check_update">🔄 Verificar atualização agora</string>
+    <string name="update_status_default">Status: Aguardando</string>
+
+    <!-- Cartão de logs de diagnóstico -->
+    <string name="runtime_log_title">📋 Diagnóstico de eventos e volume/pulos em tempo real</string>
+    <string name="runtime_log_desc">Detecções de anúncios, volume, ações do sensor e cliques são gravados automaticamente em arquivo local para diagnóstico.</string>
+    <string name="btn_view_logs">📄 Ver logs em tempo real</string>
+    <string name="runtime_log_dialog_title">📋 Eventos e diagnóstico (Últimas 150 linhas)</string>
+    <string name="btn_refresh_log">Atualizar</string>
+    <string name="btn_clear_log">Limpar logs</string>
+    <string name="btn_close">Fechar</string>
+    <string name="toast_log_cleared">Logs limpos com sucesso.</string>
+
+    <string name="guide_title">Guia de permissões do Android TV / Google TV</string>
+    <string name="guide_text">1. Clique em [Abrir configurações de acessibilidade] e ative o \'Serviço para pular anúncios do YouTube na TV\'.\n2. No Google TV 12/13+ com permissões restritas, conceda via ADB no PC.</string>
+    
+    <string name="adb_command_label">Comandos de permissão ADB:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

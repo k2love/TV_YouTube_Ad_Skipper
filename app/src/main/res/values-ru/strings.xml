@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">Служба пропуска рекламы YouTube на TV</string>
+    <string name="accessibility_service_description">Автоматически пропускает рекламу в официальном приложении YouTube TV за 0.001 сек после окончания таймера.</string>
+    
+    <string name="tv_title">Автоматический пропуск рекламы YouTube на Android TV</string>
+    <string name="service_status_label">Статус службы специальных возможностей:</string>
+    <string name="status_enabled">Работает (Включено)</string>
+    <string name="status_disabled">Остановлено (Требуются права спец. возможностей)</string>
+    <string name="btn_open_settings">Открыть спец. возможности</string>
+    <string name="btn_test_log">Тест пропуска / Обновить</string>
+    
+    <!-- Протокол Lounge -->
+    <string name="lounge_section_title">🎯 Официальный протокол Lounge (Рекомендуется: 100% без ошибок)</string>
+    <string name="lounge_desc">Получает сигналы об окончании рекламы напрямую с серверов Google через сессию \'Подключение по коду телевизора\' и пропускает за 0.001 сек без сканирования экрана.</string>
+    <string name="lounge_hint">Введите 12-значный код из настроек YouTube -> Подключение по коду</string>
+    <string name="btn_pair_tv">Подключить ТВ</string>
+    <string name="btn_unpair_tv">Отключить</string>
+    <string name="lounge_status_paired">Подключено (%s) - Мониторинг активен</string>
+    <string name="lounge_status_unpaired">Не подключено (Введите 12-значный код для подключения)</string>
+    <string name="lounge_stats">Пропущено рекламы: %d (С момента включения)</string>
+    <string name="lounge_stats_default">Пропущено рекламы: 0 (С момента включения)</string>
+    <string name="btn_reset_stats">Сбросить счетчик</string>
+    <string name="lounge_event_default">Последний сигнал: Ожидание</string>
+    <string name="switch_auto_mute">Аппаратное автозаглушение звука во время рекламы</string>
+
+    <!-- Карточка пиксельного сенсора -->
+    <string name="pixel_sensor_title">👁️ Сенсор цвета пикселей (Безопасный режим без Shorts)</string>
+    <string name="pixel_sensor_desc">Выполняет точечный клик только при появлении белой кнопки пропуска после желтого круглого таймера. Без всплывающих окон Shorts.</string>
+    <string name="switch_pixel_sensor">Включить пиксельный сенсор (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Автопропуск окна отключения Shorts (0.1с)</string>
+    <string name="switch_qr_ad_dismiss">Автозакрытие QR-рекламы товаров (0.1с)</string>
+
+    <!-- Карточка OTA обновлений -->
+    <string name="ota_update_title">🚀 Версия приложения и автообновление (OTA)</string>
+    <string name="app_version_default">Текущая версия: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">При появлении нового APK на GitHub приложение автоматически предлагает обновление при запуске.</string>
+    <string name="btn_check_update">🔄 Проверить обновление</string>
+    <string name="update_status_default">Статус: Ожидание</string>
+
+    <!-- Карточка журнала диагностики -->
+    <string name="runtime_log_title">📋 Журнал событий и диагностики звука/пропуска</string>
+    <string name="runtime_log_desc">Обнаружение рекламы, громкость, действия сенсора и клики автоматически сохраняются в локальный файл.</string>
+    <string name="btn_view_logs">📄 Просмотр журнала</string>
+    <string name="runtime_log_dialog_title">📋 Журнал событий и диагностика (Последние 150 строк)</string>
+    <string name="btn_refresh_log">Обновить</string>
+    <string name="btn_clear_log">Очистить</string>
+    <string name="btn_close">Закрыть</string>
+    <string name="toast_log_cleared">Журнал очищен.</string>
+
+    <string name="guide_title">Руководство по разрешениям Android TV / Google TV</string>
+    <string name="guide_text">1. Нажмите [Открыть спец. возможности] и включите \'Службу пропуска рекламы YouTube на TV\'.\n2. На Google TV 12/13+ с ограничениями выдайте права через ADB на ПК.</string>
+    
+    <string name="adb_command_label">Команды ADB для выдачи разрешений:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

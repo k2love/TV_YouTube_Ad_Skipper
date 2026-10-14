@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">Service pour ignorer les pubs YouTube TV</string>
+    <string name="accessibility_service_description">Ignore automatiquement les publicités sur l\'application officielle YouTube TV en 0,001 s dès la fin du minuteur.</string>
+    
+    <string name="tv_title">Saut automatique des pubs YouTube sur Android TV</string>
+    <string name="service_status_label">État du service d\'accessibilité :</string>
+    <string name="status_enabled">En cours d\'exécution (Activé)</string>
+    <string name="status_disabled">Arrêté (Autorisation d\'accessibilité requise)</string>
+    <string name="btn_open_settings">Ouvrir les paramètres d\'accessibilité</string>
+    <string name="btn_test_log">Tester la détection / Actualiser</string>
+    
+    <!-- Protocole Lounge -->
+    <string name="lounge_section_title">🎯 Protocole officiel Lounge (Recommandé : 100 % sans erreur)</string>
+    <string name="lounge_desc">Reçoit directement les signaux de fin de pub des serveurs Google via la session officielle \'Associer avec un code TV\', sautant en 0,001 s sans analyser l\'écran.</string>
+    <string name="lounge_hint">Saisissez le code à 12 chiffres depuis Paramètres YouTube -> Associer avec un code TV</string>
+    <string name="btn_pair_tv">Associer le téléviseur</string>
+    <string name="btn_unpair_tv">Dissocier</string>
+    <string name="lounge_status_paired">Associé (%s) - Surveillance automatique active</string>
+    <string name="lounge_status_unpaired">Non associé (Entrez le code à 12 chiffres pour associer)</string>
+    <string name="lounge_stats">Pubs ignorées : %d (Depuis le démarrage)</string>
+    <string name="lounge_stats_default">Pubs ignorées : 0 (Depuis le démarrage)</string>
+    <string name="btn_reset_stats">Réinitialiser le compteur</string>
+    <string name="lounge_event_default">Dernier signal reçu : En attente</string>
+    <string name="switch_auto_mute">Mise en sourdine matérielle automatique pendant les pubs</string>
+
+    <!-- Carte du capteur de pixels -->
+    <string name="pixel_sensor_title">👁️ Capteur de couleur de pixels par vision (Sans pop-up Shorts)</string>
+    <string name="pixel_sensor_desc">Effectue 1 clic précis uniquement lorsque le bouton blanc d\'omission apparaît après le décompte jaune. Aucun pop-up Shorts.</string>
+    <string name="switch_pixel_sensor">Activer le capteur de couleur de pixels (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Ignorer automatiquement l\'invite de déconnexion Shorts (0,1 s)</string>
+    <string name="switch_qr_ad_dismiss">Fermer automatiquement la pub d\'achat QR code (0,1 s)</string>
+
+    <!-- Carte de mise à jour OTA -->
+    <string name="ota_update_title">🚀 Version de l\'application et mise à jour sans fil (OTA)</string>
+    <string name="app_version_default">Version actuelle : v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">Lorsqu\'un nouvel APK est publié sur GitHub, l\'application le détecte au démarrage ou vous pouvez vérifier manuellement ci-dessous.</string>
+    <string name="btn_check_update">🔄 Vérifier les mises à jour</string>
+    <string name="update_status_default">Statut : En attente</string>
+
+    <!-- Carte des journaux de diagnostic -->
+    <string name="runtime_log_title">📋 Événements d\'exécution et diagnostic volume/saut</string>
+    <string name="runtime_log_desc">Les détections de pubs, niveaux de volume, capteurs et clics sont enregistrés automatiquement dans un fichier local pour diagnostic.</string>
+    <string name="btn_view_logs">📄 Voir les journaux en direct</string>
+    <string name="runtime_log_dialog_title">📋 Événements et diagnostics (150 dernières lignes)</string>
+    <string name="btn_refresh_log">Actualiser</string>
+    <string name="btn_clear_log">Effacer les journaux</string>
+    <string name="btn_close">Fermer</string>
+    <string name="toast_log_cleared">Journaux effacés.</string>
+
+    <string name="guide_title">Guide des autorisations Android TV / Google TV</string>
+    <string name="guide_text">1. Cliquez sur [Ouvrir les paramètres d\'accessibilité] et activez le \'Service pour ignorer les pubs YouTube TV\'.\n2. Sur Google TV 12/13+ avec restrictions, accordez les autorisations via ADB sur PC.</string>
+    
+    <string name="adb_command_label">Commandes d\'autorisation ADB :</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

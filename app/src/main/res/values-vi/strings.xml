@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">Dịch vụ tự động bỏ qua quảng cáo YouTube TV</string>
+    <string name="accessibility_service_description">Tự động bỏ qua quảng cáo trên ứng dụng YouTube TV chính thức trong vòng 0,001 giây khi đồng hồ đếm ngược kết thúc.</string>
+    
+    <string name="tv_title">Tự động bỏ qua quảng cáo YouTube chính thức trên Android TV</string>
+    <string name="service_status_label">Trạng thái dịch vụ trợ năng:</string>
+    <string name="status_enabled">Đang chạy (Đã bật)</string>
+    <string name="status_disabled">Đã dừng (Cần quyền trợ năng)</string>
+    <string name="btn_open_settings">Mở cài đặt trợ năng</string>
+    <string name="btn_test_log">Kiểm tra phát hiện / Làm mới</string>
+    
+    <!-- Giao thức Lounge -->
+    <string name="lounge_section_title">🎯 Chế độ giao thức Lounge chính thức (Khuyên dùng: 100% không lỗi)</string>
+    <string name="lounge_desc">Nhận tín hiệu hoàn thành quảng cáo trực tiếp từ máy chủ Google thông qua phiên \'Liên kết bằng mã TV\' chính thức, bỏ qua trong 0,001 giây mà không cần quét màn hình.</string>
+    <string name="lounge_hint">Nhập mã 12 chữ số từ Cài đặt YouTube -> Liên kết bằng mã TV</string>
+    <string name="btn_pair_tv">Liên kết TV</string>
+    <string name="btn_unpair_tv">Hủy liên kết</string>
+    <string name="lounge_status_paired">Đã liên kết (%s) - Đang tự động giám sát</string>
+    <string name="lounge_status_unpaired">Chưa liên kết (Nhập mã 12 chữ số để liên kết)</string>
+    <string name="lounge_stats">Số quảng cáo đã bỏ qua: %d (Từ lúc khởi động)</string>
+    <string name="lounge_stats_default">Số quảng cáo đã bỏ qua: 0 (Từ lúc khởi động)</string>
+    <string name="btn_reset_stats">Đặt lại bộ đếm</string>
+    <string name="lounge_event_default">Tín hiệu nhận gần nhất: Đang chờ</string>
+    <string name="switch_auto_mute">Tự động tắt tiếng phần cứng khi có quảng cáo</string>
+
+    <!-- Thẻ cảm biến điểm ảnh -->
+    <string name="pixel_sensor_title">👁️ Cảm biến màu điểm ảnh thị giác máy tính (Không pop-up Shorts)</string>
+    <string name="pixel_sensor_desc">Chỉ nhấp 1 lần chính xác khi nút bỏ qua màu trắng xuất hiện sau khi vòng tròn đếm ngược màu vàng kết thúc. Không bị pop-up Shorts.</string>
+    <string name="switch_pixel_sensor">Bật cảm biến màu điểm ảnh (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Tự động bỏ qua thông báo ngắt kết nối Shorts (0,1s)</string>
+    <string name="switch_qr_ad_dismiss">Tự động đóng quảng cáo mua sắm mã QR (0,1s)</string>
+
+    <!-- Thẻ cập nhật OTA -->
+    <string name="ota_update_title">🚀 Phiên bản ứng dụng &amp; Cập nhật tự động không dây (OTA)</string>
+    <string name="app_version_default">Phiên bản hiện tại: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">Khi có APK mới trên GitHub, ứng dụng sẽ tự động phát hiện khi mở hoặc bạn có thể kiểm tra thủ công bằng nút bên dưới.</string>
+    <string name="btn_check_update">🔄 Kiểm tra cập nhật ngay</string>
+    <string name="update_status_default">Trạng thái: Đang chờ</string>
+
+    <!-- Thẻ nhật ký chẩn đoán -->
+    <string name="runtime_log_title">📋 Nhật ký chẩn đoán sự kiện &amp; âm lượng/bỏ qua</string>
+    <string name="runtime_log_desc">Phát hiện quảng cáo, mức âm lượng, cảm biến điểm ảnh và lượt nhấp bỏ qua được ghi tự động vào tệp cục bộ.</string>
+    <string name="btn_view_logs">📄 Xem nhật ký trực tiếp</string>
+    <string name="runtime_log_dialog_title">📋 Sự kiện &amp; Chẩn đoán thời gian chạy (150 dòng gần nhất)</string>
+    <string name="btn_refresh_log">Làm mới</string>
+    <string name="btn_clear_log">Xóa nhật ký</string>
+    <string name="btn_close">Đóng</string>
+    <string name="toast_log_cleared">Đã xóa nhật ký thành công.</string>
+
+    <string name="guide_title">Hướng dẫn cấp quyền Android TV / Google TV</string>
+    <string name="guide_text">1. Nhấp vào [Mở cài đặt trợ năng] và bật \'Dịch vụ tự động bỏ qua quảng cáo YouTube TV\'.\n2. Trên Google TV 12/13+ bị hạn chế quyền cài ngoài, cấp quyền qua lệnh ADB trên máy tính.</string>
+    
+    <string name="adb_command_label">Lệnh cấp quyền ADB:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

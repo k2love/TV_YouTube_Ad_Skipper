@@ -218,25 +218,69 @@ class TvAdSkipService : AccessibilityService() {
 
     private val qrShoppingKeywords = listOf(
         "수수료", "수수료 지급", "수수료지급", "QR 코드", "QR코드",
-        "스캔하세요", "스캔하여", "스캔", "제품을 구매", "구매하기", "쇼핑", "상품"
+        "스캔하세요", "스캔하여", "스캔", "제품을 구매", "구매하기", "쇼핑", "상품",
+        "Scan", "QR code", "Shop", "Products", "Shopping",
+        "スキャン", "扫码", "掃碼", "Escanear", "Escanee", "Scannez",
+        "Pusat belanja", "Belanja"
     )
 
     private val qrCloseKeywords = listOf(
-        "닫기", "광고 닫기", "Close", "Dismiss", "X", "x"
+        "닫기", "광고 닫기", "Close", "Dismiss", "X", "x",
+        "閉じる", "关闭", "關閉", "Cerrar", "Fechar",
+        "Fermer", "Schließen", "Закрыть", "Tutup", "बंद करें",
+        "إغلاق", "Đóng"
     )
 
     private val disconnectDialogKeywords = listOf(
         "연결을 해제", "연결해제", "연결 해제", "전송을 해제", "전송 해제",
-        "전송을 중지", "전송 중지", "전송을 종료", "캐스팅을 중지", "Disconnect", "Stop casting"
+        "전송을 중지", "전송 중지", "전송을 종료", "캐스팅을 중지",
+        "Disconnect", "Stop casting", "Cast beenden", "Arrêter la diffusion",
+        "Desconectar", "Interromper transmissão", "Putuskan koneksi", "Hentikan transmisi",
+        "断开连接", "中斷連線", "切断"
     )
 
     private val specificDismissButtons = listOf(
-        "전송 해제", "연결 해제", "전송 중지", "Stop casting", "Disconnect"
+        "전송 해제", "연결 해제", "전송 중지", "Stop casting", "Disconnect",
+        "Desconectar", "Interromper", "Arrêter", "Beenden", "Putuskan",
+        "断开", "中斷", "切断"
     )
 
-    private val countdownRegex = Regex("""(\d+\s*초\s*(후|뒤)|영상이\s*곧\s*재생|동영상이\s*곧\s*재생|원본\s*영상이\s*곧|[Ss]kip\s+in\s+\d+|[Vv]ideo\s+will\s+play\s+after\s+ad)""")
+    private val countdownRegex = Regex(
+        """(\d+\s*초\s*(후|뒤)|영상이\s*곧\s*재생|동영상이\s*곧\s*재생|원본\s*영상이\s*곧|""" +
+        """[Ss]kip\s+(in|after)\s+\d+|[Vv]ideo\s+(will\s+)?play\s+after|[Pp]layback\s+will\s+begin|""" +
+        """\d+\s*秒[後后]|動画が再生|即将播放|即將播放|""" +
+        """[Ss]altar\s+en\s+\d+|[Pp]ular\s+em\s+\d+|[Pp]asser\s+(l'annonce\s+)?dans\s+\d+|""" +
+        """[Üü]berspringen\s+in\s+\d+|[Пп]ропустить\s+через\s+\d+|[Ll]ewati\s+dalam\s+\d+|""" +
+        """\d+\s*सेकंड|تخطي\s+بعد|[Bb]ỏ\s+qua\s+sau\s+\d+)"""
+    )
 
-    private val adBadgePattern = Regex("""^(광고(\s*[·•]?\s*\d+[/of\s]|[\s·•\u00A0]|$)|Ad(\s*[·•]?\s*\d+[/of\s]|[\s·•:]|$)|Sponsored)""", RegexOption.IGNORE_CASE)
+    private val adBadgePattern = Regex(
+        """^(광고|広告|广告|廣告|Ad|Ads|Sponsored|Anuncio|Anúncio|Annonce|Werbung|Реклама|Iklan|विज्ञापन|إعلان|Quảng cáo)(\s*[·•:]?\s*\d+[/of\s]|[\s·•:\u00A0]|$)""",
+        RegexOption.IGNORE_CASE
+    )
+
+    private val skipKeywordsExact = listOf(
+        "건너뛰기", "스킵", "Skip", "スキップ", "跳过", "略過",
+        "Saltar", "Pular", "Passer", "Überspringen", "Пропустить",
+        "Lewati", "छोड़ें", "تخطي", "Bỏ qua"
+    )
+
+    private val skipKeywordsPrefix = listOf(
+        "광고 건너뛰기", "모두 건너뛰기",
+        "Skip Ad", "Skip Ads", "Skip ad", "Skip ads", "Skip all",
+        "広告をスキップ", "広告スキップ",
+        "跳过广告", "全部跳过",
+        "略過廣告", "全部略過",
+        "Saltar anuncio", "Saltar anuncios",
+        "Pular anúncio", "Pular anúncios",
+        "Passer l'annonce", "Passer les annonces",
+        "Werbung überspringen",
+        "Пропустить рекламу",
+        "Lewati Iklan", "Lewati iklan",
+        "विज्ञापन छोड़ें",
+        "تخطي الإعلان", "تخطي الإعلانات",
+        "Bỏ qua quảng cáo"
+    )
 
     private val chatKeywords = listOf("채팅", "실시간 채팅", "Chat", "Live chat")
 
@@ -418,11 +462,8 @@ class TvAdSkipService : AccessibilityService() {
                 val isSkipViewId = knownSkipViewIds.contains(viewId) ||
                         viewId.contains("skip_ad", ignoreCase = true) ||
                         viewId.contains("ad_skip", ignoreCase = true)
-                val isSkipText = text.equals("건너뛰기", ignoreCase = true) || desc.equals("건너뛰기", ignoreCase = true) ||
-                        text.contains("광고 건너뛰기") || desc.contains("광고 건너뛰기") ||
-                        text.contains("모두 건너뛰기") || desc.contains("모두 건너뛰기") ||
-                        text.equals("Skip", ignoreCase = true) || desc.equals("Skip", ignoreCase = true) ||
-                        text.startsWith("Skip Ad", ignoreCase = true) || desc.startsWith("Skip Ad", ignoreCase = true)
+                val isSkipText = skipKeywordsExact.any { text.equals(it, ignoreCase = true) || desc.equals(it, ignoreCase = true) } ||
+                        skipKeywordsPrefix.any { text.contains(it, ignoreCase = true) || desc.contains(it, ignoreCase = true) }
                 if (isSkipViewId || isSkipText) {
                     out.skipNode = node
                     out.skipTriggerDesc = if (isSkipViewId) "ViewId: $viewId" else "Keyword: $combined"

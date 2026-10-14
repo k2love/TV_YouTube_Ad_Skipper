@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">خدمة تخطي إعلانات يوتيوب على التلفزيون</string>
+    <string name="accessibility_service_description">تخطي الإعلانات تلقائيًا في تطبيق YouTube TV الرسمي خلال 0.001 ثانية عند انتهاء مؤقت التخطي.</string>
+    
+    <string name="tv_title">تخطي إعلانات يوتيوب الرسمية تلقائيًا على Android TV</string>
+    <string name="service_status_label">حالة خدمة إمكانية الوصول:</string>
+    <string name="status_enabled">قيد التشغيل (مفعل)</string>
+    <string name="status_disabled">متوقف (يتطلب إذن إمكانية الوصول)</string>
+    <string name="btn_open_settings">فتح إعدادات إمكانية الوصول</string>
+    <string name="btn_test_log">اختبار التخطي / تحديث</string>
+    
+    <!-- بروتوكول Lounge -->
+    <string name="lounge_section_title">🎯 وضع بروتوكول Lounge الرسمي (موصى به: بدون أخطاء 100%)</string>
+    <string name="lounge_desc">يتلقى إشارات انتهاء الإعلان مباشرة من خوادم Google عبر جلسة \'الربط برمز التلفزيون\' الرسمية ويتخطى في 0.001 ثانية دون مسح الشاشة.</string>
+    <string name="lounge_hint">أدخل الرمز المكون من 12 رقمًا من إعدادات يوتيوب -> الربط برمز التلفزيون</string>
+    <string name="btn_pair_tv">ربط التلفزيون</string>
+    <string name="btn_unpair_tv">إلغاء الربط</string>
+    <string name="lounge_status_paired">تم الربط (%s) - المراقبة التلقائية نشطة</string>
+    <string name="lounge_status_unpaired">غير مربوط (أدخل الرمز المكون من 12 رقمًا للربط)</string>
+    <string name="lounge_stats">الإعلانات التي تم تخطيها: %d (منذ بدء التشغيل)</string>
+    <string name="lounge_stats_default">الإعلانات التي تم تخطيها: 0 (منذ بدء التشغيل)</string>
+    <string name="btn_reset_stats">إعادة تعيين العداد</string>
+    <string name="lounge_event_default">آخر إشارة مستلمة: في الانتظار</string>
+    <string name="switch_auto_mute">كتم الصوت التلقائي للأجهزة أثناء الإعلانات</string>
+
+    <!-- بطاقة مستشعر البكسل -->
+    <string name="pixel_sensor_title">👁️ مستشعر ألوان البكسل بالرؤية الحاسوبية (وضع آمن بدون Shorts)</string>
+    <string name="pixel_sensor_desc">ينقر نقرة واحدة دقيقة فقط عند ظهور زر التخطي الأبيض بعد انتهاء العد التنازلي الدائري الأصفر. بدون نوافذ Shorts المنبثقة.</string>
+    <string name="switch_pixel_sensor">تفعيل مستشعر ألوان البكسل (Android 11+)</string>
+    <string name="switch_shorts_dismiss">تخطي نافذة قطع اتصال Shorts تلقائيًا (0.1 ثانية)</string>
+    <string name="switch_qr_ad_dismiss">إغلاق إعلانات التسوق عبر رمز QR تلقائيًا (0.1 ثانية)</string>
+
+    <!-- بطاقة التحديث اللاسلكي OTA -->
+    <string name="ota_update_title">🚀 إصدار التطبيق والتحديث التلقائي اللاسلكي (OTA)</string>
+    <string name="app_version_default">الإصدار الحالي: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">عند إصدار APK جديد على GitHub، يكتشف التطبيق ذلك عند بدء التشغيل أو يمكنك التحقق يدويًا.</string>
+    <string name="btn_check_update">🔄 التحقق من التحديث الآن</string>
+    <string name="update_status_default">الحالة: في الانتظار</string>
+
+    <!-- بطاقة سجل التشخيص -->
+    <string name="runtime_log_title">📋 سجل أحداث التشغيل وتشخيص الصوت والتخطي</string>
+    <string name="runtime_log_desc">يتم تسجيل اكتشاف الإعلانات ومستوى الصوت وإجراءات المستشعر ونقرات التخطي تلقائيًا للتشخيص.</string>
+    <string name="btn_view_logs">📄 عرض السجلات المباشرة</string>
+    <string name="runtime_log_dialog_title">📋 أحداث التشغيل والتشخيص (آخر 150 سطرًا)</string>
+    <string name="btn_refresh_log">تحديث</string>
+    <string name="btn_clear_log">مسح السجلات</string>
+    <string name="btn_close">إغلاق</string>
+    <string name="toast_log_cleared">تم مسح السجلات بنجاح.</string>
+
+    <string name="guide_title">دليل أذونات Android TV / Google TV</string>
+    <string name="guide_text">1. انقر على [فتح إعدادات إمكانية الوصول] وفعل \'خدمة تخطي إعلانات يوتيوب على التلفزيون\'.\n2. في Google TV 12/13+ مع الأذونات المقيدة، امنحها عبر أوامر ADB من الكمبيوتر.</string>
+    
+    <string name="adb_command_label">أوامر أذونات ADB:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

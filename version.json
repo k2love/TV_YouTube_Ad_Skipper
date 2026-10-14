@@ -1,6 +1,6 @@
 {
-  "versionCode": 72,
-  "versionName": "0.7.2",
+  "versionCode": 80,
+  "versionName": "0.8.0",
   "downloadUrl": "https://raw.githubusercontent.com/k2love/TV_YouTube_Ad_Skipper/main/TV_YouTube_Ad_Skipper.apk",
-  "changelog": "- 정상 영상 재생 중 오음소거(False Positive) 버그 완벽 차단\n- 비광고 시청 중 픽셀 센서 우하단 노란색/스킵 감지 전면 차단 (영상 내 노란 자막, 황혼/조명, 노란 로고로 인한 오음소거 방지)\n- 영단어(Broadcast, Download, Shadow 등) 및 일반 제목 오탐 방지를 위한 정규 광고 배지(isRealAdBadge) 정밀 매칭 적용\n- 영상 탐색바의 '15분 남음' 및 일반 제목('Top 10 in Korea' 등)을 광고 카운트다운으로 오판하던 결함 정규식(countdownRegex)으로 정밀 수정"
+  "changelog": "- 글로벌 다국어 지원 (영어 기본, 한국어, 일본어, 중국어 간/번체, 힌디어, 스페인어, 포르투갈어, 러시아어, 프랑스어, 독일어, 인도네시아어, 아랍어, 베트남어)\n- 전 세계 각국 유튜브 TV 앱 광고 배지 및 스킵 버튼 다국어 감지 알고리즘 적용\n- 구글 드라이브 로그 업로드 기능 및 종속성 제거 (로컬 진단 로그 뷰어 유지)\n- activity_main.xml 레이아웃 하드코딩 텍스트 전수 리소스화"
 }

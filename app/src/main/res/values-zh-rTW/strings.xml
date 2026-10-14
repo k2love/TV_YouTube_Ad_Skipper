@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">TV YouTube 廣告自動略過服務</string>
+    <string name="accessibility_service_description">在官方 YouTube TV 應用程式中，廣告略過計時器結束後0.001秒內自動略過廣告。</string>
+    
+    <string name="tv_title">Android TV YouTube 官方廣告自動略過</string>
+    <string name="service_status_label">無障礙服務狀態:</string>
+    <string name="status_enabled">執行中 (已啟用)</string>
+    <string name="status_disabled">已停止 (需要無障礙權限)</string>
+    <string name="btn_open_settings">開啟無障礙設定</string>
+    <string name="btn_test_log">測試略過偵測 / 重新整理</string>
+    
+    <!-- Lounge 協定 -->
+    <string name="lounge_section_title">🎯 官方 Lounge 協定模式 (首選推薦: 100% 零錯誤)</string>
+    <string name="lounge_desc">無需掃描螢幕，透過 YouTube 官方「以電視代碼連結」工作階段直接從 Google 伺服器接收廣告播放完畢信號，0.001秒內瞬間略過。</string>
+    <string name="lounge_hint">輸入 YouTube 應用程式「設定」->「以電視代碼連結」中的12位數字</string>
+    <string name="btn_pair_tv">連結電視</string>
+    <string name="btn_unpair_tv">取消連結</string>
+    <string name="lounge_status_paired">已連結 (%s) - 自動監控運作中</string>
+    <string name="lounge_status_unpaired">未連結 (請輸入12位代碼以進行連結)</string>
+    <string name="lounge_stats">已略過廣告次數: %d次 (本次開機後)</string>
+    <string name="lounge_stats_default">已略過廣告次數: 0次 (本次開機後)</string>
+    <string name="btn_reset_stats">重設計數</string>
+    <string name="lounge_event_default">最新接收信號: 等候中</string>
+    <string name="switch_auto_mute">播放廣告時硬體級完全自動靜音</string>
+
+    <!-- 像素感應器 卡片 -->
+    <string name="pixel_sensor_title">👁️ 電腦視覺像素色彩感應器 (防止 Shorts 彈窗視覺模式)</string>
+    <string name="pixel_sensor_desc">僅在右下方黃色圓形倒數結束且白色略過按鈕可見時進行定點點擊1次 (完全無 Shorts 彈窗)。</string>
+    <string name="switch_pixel_sensor">啟用像素色彩感應器 (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Shorts 中斷連線彈窗0.1秒自動略過</string>
+    <string name="switch_qr_ad_dismiss">QR 碼購物推廣廣告0.1秒自動關閉</string>
+
+    <!-- OTA 更新 卡片 -->
+    <string name="ota_update_title">🚀 應用程式版本與無線自動更新 (OTA)</string>
+    <string name="app_version_default">目前版本: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">當 GitHub 發布新 APK 時，應用程式啟動時會自動偵測更新，亦可透過下方按鈕手動檢查。</string>
+    <string name="btn_check_update">🔄 立即檢查更新</string>
+    <string name="update_status_default">狀態: 等候中</string>
+
+    <!-- 執行診斷記錄 卡片 -->
+    <string name="runtime_log_title">📋 執行診斷與音量/略過記錄</string>
+    <string name="runtime_log_desc">廣告偵測、音量數值、像素感應器動作及略過點擊記錄將自動儲存至本機記錄檔案以供診斷。</string>
+    <string name="btn_view_logs">📄 檢視即時記錄</string>
+    <string name="runtime_log_dialog_title">📋 執行事件與診斷記錄 (最近150行)</string>
+    <string name="btn_refresh_log">重新整理</string>
+    <string name="btn_clear_log">清除記錄</string>
+    <string name="btn_close">關閉</string>
+    <string name="toast_log_cleared">記錄已清除。</string>
+
+    <string name="guide_title">Android TV / Google TV 權限指引</string>
+    <string name="guide_text">1. 點擊 [開啟無障礙設定] 並開啟「TV YouTube 廣告自動略過服務」。\n2. 在 Google TV 12/13+ 等側載權限受限的環境下，可透過電腦執行下方 ADB 指令快速授權。</string>
+    
+    <string name="adb_command_label">ADB 授權指令:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">TV YouTube Werbung-Überspringen-Dienst</string>
+    <string name="accessibility_service_description">Überspringt Werbung in der offiziellen YouTube TV-App automatisch innerhalb von 0,001 Sekunden nach Ablauf des Timers.</string>
+    
+    <string name="tv_title">Automatisches Überspringen von YouTube-Werbung auf Android TV</string>
+    <string name="service_status_label">Status der Bedienungshilfe:</string>
+    <string name="status_enabled">Aktiviert (Läuft)</string>
+    <string name="status_disabled">Deaktiviert (Berechtigung erforderlich)</string>
+    <string name="btn_open_settings">Bedienungshilfen öffnen</string>
+    <string name="btn_test_log">Erkennung testen / Aktualisieren</string>
+    
+    <!-- Lounge-Protokoll -->
+    <string name="lounge_section_title">🎯 Offizieller Lounge-Protokoll-Modus (Empfohlen: 100% fehlerfrei)</string>
+    <string name="lounge_desc">Empfängt Signale zum Ende der Werbung direkt von Google-Servern über die offizielle \'Mit TV-Code verbinden\'-Sitzung und überspringt in 0,001s ohne Bildschirmsuche.</string>
+    <string name="lounge_hint">12-stelligen Code aus YouTube-Einstellungen -> Mit TV-Code verbinden eingeben</string>
+    <string name="btn_pair_tv">TV verbinden</string>
+    <string name="btn_unpair_tv">Trennen</string>
+    <string name="lounge_status_paired">Verbunden (%s) - Automatische Überwachung aktiv</string>
+    <string name="lounge_status_unpaired">Nicht verbunden (12-stelligen Code zum Verbinden eingeben)</string>
+    <string name="lounge_stats">Übersprungene Werbung: %d (Seit Start)</string>
+    <string name="lounge_stats_default">Übersprungene Werbung: 0 (Seit Start)</string>
+    <string name="btn_reset_stats">Zähler zurücksetzen</string>
+    <string name="lounge_event_default">Letztes empfangenes Signal: Warten</string>
+    <string name="switch_auto_mute">Automatische Hardware-Stummschaltung während der Werbung</string>
+
+    <!-- Pixelsensor-Karte -->
+    <string name="pixel_sensor_title">👁️ Computer-Vision-Farbsensor (Shorts-sicherer visueller Modus)</string>
+    <string name="pixel_sensor_desc">Führt genau 1 Klick aus, wenn die weiße Schaltfläche nach dem gelben Countdown erscheint. Keine Shorts-Popups.</string>
+    <string name="switch_pixel_sensor">Pixelfarbsensor aktivieren (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Shorts-Trennungs-Popup in 0,1s automatisch schließen</string>
+    <string name="switch_qr_ad_dismiss">QR-Code-Einkaufswerbung in 0,1s automatisch schließen</string>
+
+    <!-- OTA-Update-Karte -->
+    <string name="ota_update_title">🚀 App-Version &amp; Drahtloses Auto-Update (OTA)</string>
+    <string name="app_version_default">Aktuelle Version: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">Wenn ein neues APK auf GitHub veröffentlicht wird, erkennt die App dies beim Start oder Sie können manuell prüfen.</string>
+    <string name="btn_check_update">🔄 Jetzt auf Updates prüfen</string>
+    <string name="update_status_default">Status: Warten</string>
+
+    <!-- Diagnose-Protokoll-Karte -->
+    <string name="runtime_log_title">📋 Laufzeitereignisse &amp; Lautstärke-/Skip-Diagnose</string>
+    <string name="runtime_log_desc">Werbeerkennung, Lautstärke, Sensoraktionen und Klicks werden automatisch in einer lokalen Datei protokolliert.</string>
+    <string name="btn_view_logs">📄 Live-Protokoll anzeigen</string>
+    <string name="runtime_log_dialog_title">📋 Laufzeitereignisse &amp; Diagnose (Letzte 150 Zeilen)</string>
+    <string name="btn_refresh_log">Aktualisieren</string>
+    <string name="btn_clear_log">Protokoll löschen</string>
+    <string name="btn_close">Schließen</string>
+    <string name="toast_log_cleared">Protokoll wurde gelöscht.</string>
+
+    <string name="guide_title">Berechtigungsleitfaden für Android TV / Google TV</string>
+    <string name="guide_text">1. Klicken Sie auf [Bedienungshilfen öffnen] und aktivieren Sie den \'TV YouTube Werbung-Überspringen-Dienst\'.\n2. Auf Google TV 12/13+ Berechtigungen bei Bedarf über ADB erteilen.</string>
+    
+    <string name="adb_command_label">ADB-Berechtigungsbefehle:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">TV YouTube विज्ञापन स्किप सेवा</string>
+    <string name="accessibility_service_description">स्किप टाइमर समाप्त होने पर आधिकारिक YouTube TV ऐप में 0.001 सेकंड के भीतर स्वचालित रूप से विज्ञापनों को छोड़ देता है।</string>
+    
+    <string name="tv_title">Android TV YouTube आधिकारिक विज्ञापन ऑटो-स्किपर</string>
+    <string name="service_status_label">एक्सेसिबिलिटी सेवा स्थिति:</string>
+    <string name="status_enabled">सक्रिय (सक्षम)</string>
+    <string name="status_disabled">बंद (एक्सेसिबिलिटी अनुमति आवश्यक)</string>
+    <string name="btn_open_settings">एक्सेसिबिलिटी सेटिंग्स खोलें</string>
+    <string name="btn_test_log">स्किप टेस्ट / रीफ्रेश करें</string>
+    
+    <!-- Lounge प्रोटोकॉल -->
+    <string name="lounge_section_title">🎯 आधिकारिक Lounge प्रोटोकॉल मोड (अनुशंसित: 100% त्रुटिरहित)</string>
+    <string name="lounge_desc">स्क्रीन को स्कैन किए बिना YouTube के आधिकारिक \'टीवी कोड से लिंक करें\' सत्र के माध्यम से सीधे Google सर्वर से विज्ञापन समाप्ति संकेत प्राप्त करता है और 0.001 सेकंड में छोड़ देता है।</string>
+    <string name="lounge_hint">YouTube सेटिंग्स -> टीवी कोड से लिंक करें से 12 अंकों का कोड दर्ज करें</string>
+    <string name="btn_pair_tv">टीवी लिंक करें</string>
+    <string name="btn_unpair_tv">अनलिंक करें</string>
+    <string name="lounge_status_paired">लिंक किया गया (%s) - ऑटो-निगरानी सक्रिय</string>
+    <string name="lounge_status_unpaired">लिंक नहीं है (लिंक करने के लिए 12 अंकों का कोड दर्ज करें)</string>
+    <string name="lounge_stats">स्किप किए गए विज्ञापन: %d (शुरू होने के बाद)</string>
+    <string name="lounge_stats_default">स्किप किए गए विज्ञापन: 0 (शुरू होने के बाद)</string>
+    <string name="btn_reset_stats">गिनती रीसेट करें</string>
+    <string name="lounge_event_default">हालिया संकेत: प्रतीक्षा में</string>
+    <string name="switch_auto_mute">विज्ञापन के दौरान हार्डवेयर ऑटो-म्यूट</string>
+
+    <!-- पिक्सेल सेंसर कार्ड -->
+    <string name="pixel_sensor_title">👁️ कंप्यूटर विज़न पिक्सेल रंग सेंसर (Shorts-सुरक्षित विज़ुअल मोड)</string>
+    <string name="pixel_sensor_desc">पीला उलटी गिनती समाप्त होने के बाद सफेद स्किप बटन दिखाई देने पर ही सटीक 1 क्लिक करता है। Shorts पॉपअप से मुक्त।</string>
+    <string name="switch_pixel_sensor">पिक्सेल रंग सेंसर सक्षम करें (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Shorts डिस्कनेक्ट पॉपअप 0.1s में स्वतः हटाएं</string>
+    <string name="switch_qr_ad_dismiss">QR कोड शॉपिंग विज्ञापन 0.1s में स्वतः बंद करें</string>
+
+    <!-- OTA अपडेट कार्ड -->
+    <string name="ota_update_title">🚀 ऐप संस्करण और वायरलेस ऑटो-अपडेट (OTA)</string>
+    <string name="app_version_default">वर्तमान संस्करण: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">GitHub पर नया APK आने पर ऐप शुरू होते ही पहचान लेता है, या नीचे दिए गए बटन से जांच सकते हैं।</string>
+    <string name="btn_check_update">🔄 अभी अपडेट जांचें</string>
+    <string name="update_status_default">स्थिति: प्रतीक्षा में</string>
+
+    <!-- रनटाइम लॉग कार्ड -->
+    <string name="runtime_log_title">📋 रनटाइम इवेंट और वॉल्यूम / स्किप डायग्नोस्टिक्स</string>
+    <string name="runtime_log_desc">विज्ञापन पहचान, वॉल्यूम स्तर, पिक्सेल सेंसर और स्किप क्लिक स्थानीय फ़ाइल में स्वतः रिकॉर्ड होते हैं।</string>
+    <string name="btn_view_logs">📄 लाइव लॉग देखें</string>
+    <string name="runtime_log_dialog_title">📋 रनटाइम इवेंट और डायग्नोस्टिक्स (अंतिम 150 पंक्तियाँ)</string>
+    <string name="btn_refresh_log">रीफ्रेश</string>
+    <string name="btn_clear_log">लॉग साफ़ करें</string>
+    <string name="btn_close">बंद करें</string>
+    <string name="toast_log_cleared">लॉग साफ़ कर दिया गया।</string>
+
+    <string name="guide_title">Android TV / Google TV अनुमति गाइड</string>
+    <string name="guide_text">1. [एक्सेसिबिलिटी सेटिंग्स खोलें] पर क्लिक करें और \'TV YouTube विज्ञापन स्किप सेवा\' चालू करें।\n2. यदि अनुमति प्रतिबंधित है, तो पीसी से ADB कमांड द्वारा अनुमति दें।</string>
+    
+    <string name="adb_command_label">ADB अनुमति कमांड:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

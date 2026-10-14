@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">Servicio para saltar anuncios de TV YouTube</string>
+    <string name="accessibility_service_description">Salta anuncios automáticamente en la aplicación oficial de YouTube TV en 0.001 segundos cuando finaliza el temporizador.</string>
+    
+    <string name="tv_title">Salto automático de anuncios de YouTube en Android TV</string>
+    <string name="service_status_label">Estado del servicio de accesibilidad:</string>
+    <string name="status_enabled">En ejecución (Habilitado)</string>
+    <string name="status_disabled">Detenido (Se requiere permiso de accesibilidad)</string>
+    <string name="btn_open_settings">Abrir ajustes de accesibilidad</string>
+    <string name="btn_test_log">Probar detección / Actualizar</string>
+    
+    <!-- Protocolo Lounge -->
+    <string name="lounge_section_title">🎯 Modo oficial protocolo Lounge (Recomendado: 100% sin errores)</string>
+    <string name="lounge_desc">Recibe señales de finalización de anuncios directamente desde los servidores de Google mediante la sesión oficial \'Vincular con código de TV\', saltando en 0.001 segundos sin escanear la pantalla.</string>
+    <string name="lounge_hint">Introduce el código de 12 dígitos de Ajustes de YouTube -> Vincular con código de TV</string>
+    <string name="btn_pair_tv">Vincular TV</string>
+    <string name="btn_unpair_tv">Desvincular</string>
+    <string name="lounge_status_paired">Vinculado (%s) - Monitoreo automático activo</string>
+    <string name="lounge_status_unpaired">No vinculado (Introduce el código de 12 dígitos para vincular)</string>
+    <string name="lounge_stats">Anuncios saltados: %d (Desde el encendido)</string>
+    <string name="lounge_stats_default">Anuncios saltados: 0 (Desde el encendido)</string>
+    <string name="btn_reset_stats">Restablecer contador</string>
+    <string name="lounge_event_default">Última señal recibida: En espera</string>
+    <string name="switch_auto_mute">Silencio automático por hardware durante anuncios</string>
+
+    <!-- Tarjeta del sensor de píxeles -->
+    <string name="pixel_sensor_title">👁️ Sensor de color de píxeles por visión artificial (Modo visual sin Shorts)</string>
+    <string name="pixel_sensor_desc">Realiza un clic preciso solo cuando el botón blanco de saltar aparece tras finalizar la cuenta regresiva circular amarilla. Sin ventanas emergentes de Shorts.</string>
+    <string name="switch_pixel_sensor">Activar sensor de color de píxeles (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Omitir automáticamente aviso de desconexión de Shorts (0.1s)</string>
+    <string name="switch_qr_ad_dismiss">Cerrar automáticamente anuncio de compras con código QR (0.1s)</string>
+
+    <!-- Tarjeta de actualización OTA -->
+    <string name="ota_update_title">🚀 Versión de la app y actualización inalámbrica (OTA)</string>
+    <string name="app_version_default">Versión actual: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">Cuando se publica un nuevo APK en GitHub, la app lo detecta al inicio o puedes comprobarlo manualmente con el botón inferior.</string>
+    <string name="btn_check_update">🔄 Comprobar actualización ahora</string>
+    <string name="update_status_default">Estado: En espera</string>
+
+    <!-- Tarjeta de registros de diagnóstico -->
+    <string name="runtime_log_title">📋 Registros de diagnóstico de eventos y volumen/salto</string>
+    <string name="runtime_log_desc">La detección de anuncios, niveles de volumen, sensor de píxeles y clics de salto se guardan automáticamente en un archivo local para diagnóstico.</string>
+    <string name="btn_view_logs">📄 Ver registros en tiempo real</string>
+    <string name="runtime_log_dialog_title">📋 Eventos de ejecución y diagnóstico (Últimas 150 líneas)</string>
+    <string name="btn_refresh_log">Actualizar</string>
+    <string name="btn_clear_log">Borrar registros</string>
+    <string name="btn_close">Cerrar</string>
+    <string name="toast_log_cleared">Registros borrados.</string>
+
+    <string name="guide_title">Guía de permisos para Android TV / Google TV</string>
+    <string name="guide_text">1. Pulsa [Abrir ajustes de accesibilidad] y activa el \'Servicio para saltar anuncios de TV YouTube\'.\n2. En Google TV 12/13+ con permisos restringidos para apps externas, otórgalos mediante ADB desde una PC.</string>
+    
+    <string name="adb_command_label">Comandos de permiso ADB:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

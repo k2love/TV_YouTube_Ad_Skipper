@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">TV YouTube 広告スキップサービス</string>
+    <string name="accessibility_service_description">公式YouTube TVアプリで広告スキップタイマー終了後、0.001秒で自動スキップします。</string>
+    
+    <string name="tv_title">Android TV YouTube 公式広告自動スキップ</string>
+    <string name="service_status_label">ユーザー補助サービスの状態:</string>
+    <string name="status_enabled">実行中 (有効)</string>
+    <string name="status_disabled">停止中 (ユーザー補助の権限が必要です)</string>
+    <string name="btn_open_settings">ユーザー補助設定を開く</string>
+    <string name="btn_test_log">スキップ検出テスト / 更新</string>
+    
+    <!-- Lounge プロトコル -->
+    <string name="lounge_section_title">🎯 公式 Lounge プロトコルモード (推奨: 100% エラーなし)</string>
+    <string name="lounge_desc">画面を監視せず、YouTube公式の「テレビコードでリンク」セッション経由でGoogleサーバーから広告完了信号を直接受信し、0.001秒でスキップします。</string>
+    <string name="lounge_hint">YouTubeアプリの [設定] -> [テレビコードでリンク] の12桁の数字を入力</string>
+    <string name="btn_pair_tv">テレビをリンク</string>
+    <string name="btn_unpair_tv">リンク解除</string>
+    <string name="lounge_status_paired">リンク完了 (%s) - 自動監視中</string>
+    <string name="lounge_status_unpaired">未リンク (12桁のコードを入力してリンクしてください)</string>
+    <string name="lounge_stats">広告スキップ回数: %d回 (起動後)</string>
+    <string name="lounge_stats_default">広告スキップ回数: 0回 (起動後)</string>
+    <string name="btn_reset_stats">カウント初期化</string>
+    <string name="lounge_event_default">最新受信シグナル: 待機中</string>
+    <string name="switch_auto_mute">広告中のハードウェア完全自動ミュート</string>
+
+    <!-- ピクセルセンサー カード -->
+    <string name="pixel_sensor_title">👁️ コンピュータビジョン ピクセルカラーセンサー (Shortsポップアップ防止モード)</string>
+    <string name="pixel_sensor_desc">右下の黄色い円形カウント終了後、白いスキップボタンが表示された時のみピンポイントで1回クリックします。(Shortsポップアップなし)</string>
+    <string name="switch_pixel_sensor">ピクセルカラーセンサーを有効化 (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Shorts切断ポップアップを0.1秒で自動通過</string>
+    <string name="switch_qr_ad_dismiss">QRコード提携ショッピング広告を0.1秒で自動で閉じる</string>
+
+    <!-- OTA アップデート カード -->
+    <string name="ota_update_title">🚀 アプリバージョン＆ワイヤレス自動更新 (OTA)</string>
+    <string name="app_version_default">現在のバージョン: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">GitHubに新しいAPKがリリースされるとアプリ起動時に自動検出し、下のボタンからも手動で更新確認できます。</string>
+    <string name="btn_check_update">🔄 今すぐ更新を確認</string>
+    <string name="update_status_default">状態: 待機中</string>
+
+    <!-- 診断ログ カード -->
+    <string name="runtime_log_title">📋 リアルタイム診断＆音量/スキップログ</string>
+    <string name="runtime_log_desc">広告検出、音量数値、ピクセルセンサー、スキップクリック履歴が端末ローカルファイルに自動記録されます。</string>
+    <string name="btn_view_logs">📄 リアルタイムログを表示</string>
+    <string name="runtime_log_dialog_title">📋 実行ログ＆診断 (最新150行)</string>
+    <string name="btn_refresh_log">更新</string>
+    <string name="btn_clear_log">ログ消去</string>
+    <string name="btn_close">閉じる</string>
+    <string name="toast_log_cleared">ログが消去されました。</string>
+
+    <string name="guide_title">Android TV / Google TV 権限設定ガイド</string>
+    <string name="guide_text">1. [ユーザー補助設定を開く] を押し、「TV YouTube 広告スキップサービス」をオンにしてください。\n2. Google TV 12/13+ 等で権限が制限されている場合、PCから以下のADBコマンドを実行して付与できます。</string>
+    
+    <string name="adb_command_label">ADB 権限付与コマンド:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

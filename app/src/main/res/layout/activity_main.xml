@@ -99,7 +99,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="광고 스킵 횟수: 0회 (부팅 후)"
+                    android:text="@string/lounge_stats_default"
                     android:textColor="@color/status_green"
                     android:textSize="14sp"
                     android:textStyle="bold"
@@ -125,7 +125,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="최근 수신 신호: 대기 중"
+                android:text="@string/lounge_event_default"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
                 tools:text="최근 수신 신호: onAdStateChange (isSkipEnabled=true)" />
@@ -138,7 +138,7 @@
                 android:layout_marginTop="10dp"
                 android:checked="true"
                 android:focusable="true"
-                android:text="강제 광고 완벽 자동 음소거(Auto-Mute)"
+                android:text="@string/switch_auto_mute"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp" />
 
@@ -210,7 +210,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="👁️ 컴퓨터 비전 픽셀 색상 센서 (쇼츠 방해 없는 시각 감지 모드)"
+                android:text="@string/pixel_sensor_title"
                 android:textColor="@color/accent_blue"
                 android:textSize="16sp"
                 android:textStyle="bold" />
@@ -220,7 +220,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:lineSpacingExtra="2dp"
-                android:text="우하단에 노란 원형 카운터 종료 후 흰색 바탕 건너뛰기 버튼이 눈에 보일 때만 핀포인트 1회 클릭합니다. (쇼츠 팝업 전혀 없음)"
+                android:text="@string/pixel_sensor_desc"
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
@@ -231,7 +231,7 @@
                 android:layout_marginTop="12dp"
                 android:checked="true"
                 android:focusable="true"
-                android:text="픽셀 색상 센서 활성화 (Android 11+)"
+                android:text="@string/switch_pixel_sensor"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp" />
 
@@ -242,7 +242,7 @@
                 android:layout_marginTop="8dp"
                 android:checked="true"
                 android:focusable="true"
-                android:text="쇼츠 연결 해제 팝업 0.1초 자동 통과"
+                android:text="@string/switch_shorts_dismiss"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp" />
 
@@ -253,7 +253,7 @@
                 android:layout_marginTop="8dp"
                 android:checked="true"
                 android:focusable="true"
-                android:text="QR 코드 제휴 쇼핑 광고 0.1초 자동 닫기"
+                android:text="@string/switch_qr_ad_dismiss"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp" />
 
@@ -317,7 +317,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🚀 앱 버전 및 무선 자동 업데이트 (OTA)"
+                android:text="@string/ota_update_title"
                 android:textColor="@color/accent_blue"
                 android:textSize="16sp"
                 android:textStyle="bold" />
@@ -327,7 +327,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:text="현재 버전: v1.0.0 (Code 1)"
+                android:text="@string/app_version_default"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
@@ -337,7 +337,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:lineSpacingExtra="2dp"
-                android:text="구글 드라이브에 새 APK가 업로드되면 앱 시작 시 자동 감지하여 업데이트를 묻고, 아래 버튼으로도 수동 업데이트할 수 있습니다."
+                android:text="@string/ota_update_desc"
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
@@ -356,7 +356,7 @@
                     android:focusable="true"
                     android:paddingStart="20dp"
                     android:paddingEnd="20dp"
-                    android:text="🔄 지금 업데이트 확인"
+                    android:text="@string/btn_check_update"
                     android:textColor="@color/white"
                     android:textSize="14sp"
                     android:textStyle="bold" />
@@ -366,7 +366,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
-                    android:text="상태: 대기 중"
+                    android:text="@string/update_status_default"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />
             </LinearLayout>
@@ -384,7 +384,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="📋 런타임 이벤트 및 볼륨/스킵 진단 로그"
+                android:text="@string/runtime_log_title"
                 android:textColor="@color/accent_blue"
                 android:textSize="16sp"
                 android:textStyle="bold" />
@@ -394,7 +394,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:lineSpacingExtra="2dp"
-                android:text="광고 감지, 볼륨 수치, 픽셀 색상 센서 및 스킵 클릭 내역이 파일로 자동 기록됩니다. 문제 분석을 위해 로그를 열람하거나 공유할 수 있습니다."
+                android:text="@string/runtime_log_desc"
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
@@ -412,21 +412,7 @@
                     android:focusable="true"
                     android:paddingStart="18dp"
                     android:paddingEnd="18dp"
-                    android:text="📄 실시간 로그 보기"
-                    android:textColor="@color/white"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <androidx.appcompat.widget.AppCompatButton
-                    android:id="@+id/btnShareLogs"
-                    android:layout_width="wrap_content"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="12dp"
-                    android:background="@drawable/button_tv_selector"
-                    android:focusable="true"
-                    android:paddingStart="18dp"
-                    android:paddingEnd="18dp"
-                    android:text="☁️ 구글 드라이브로 로그 전송"
+                    android:text="@string/btn_view_logs"
                     android:textColor="@color/white"
                     android:textSize="14sp"
                     android:textStyle="bold" />

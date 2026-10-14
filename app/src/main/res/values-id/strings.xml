@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">Layanan Lewati Iklan TV YouTube</string>
+    <string name="accessibility_service_description">Melewati iklan secara otomatis di aplikasi resmi YouTube TV dalam 0,001 detik saat timer berakhir.</string>
+    
+    <string name="tv_title">Lewati Iklan Resmi YouTube Otomatis di Android TV</string>
+    <string name="service_status_label">Status Layanan Aksesibilitas:</string>
+    <string name="status_enabled">Berjalan (Aktif)</string>
+    <string name="status_disabled">Berhenti (Memerlukan izin aksesibilitas)</string>
+    <string name="btn_open_settings">Buka Pengaturan Aksesibilitas</string>
+    <string name="btn_test_log">Uji Deteksi / Segarkan</string>
+    
+    <!-- Protokol Lounge -->
+    <string name="lounge_section_title">🎯 Mode Protokol Resmi Lounge (Direkomendasikan: 100% Bebas Galat)</string>
+    <string name="lounge_desc">Menerima sinyal penyelesaian iklan langsung dari server Google melalui sesi resmi \'Tautkan dengan kode TV\', melewati dalam 0,001 detik tanpa memindai layar.</string>
+    <string name="lounge_hint">Masukkan kode 12 digit dari Setelan YouTube -> Tautkan dengan kode TV</string>
+    <string name="btn_pair_tv">Tautkan TV</string>
+    <string name="btn_unpair_tv">Putuskan Tautan</string>
+    <string name="lounge_status_paired">Tertaut (%s) - Pemantauan otomatis aktif</string>
+    <string name="lounge_status_unpaired">Belum tertaut (Masukkan kode 12 digit untuk menautkan)</string>
+    <string name="lounge_stats">Iklan dilewati: %d (Sejak Booting)</string>
+    <string name="lounge_stats_default">Iklan dilewati: 0 (Sejak Booting)</string>
+    <string name="btn_reset_stats">Reset Hitungan</string>
+    <string name="lounge_event_default">Sinyal Terakhir Diterima: Menunggu</string>
+    <string name="switch_auto_mute">Bisukan otomatis perangkat keras saat iklan tayang</string>
+
+    <!-- Kartu Sensor Piksel -->
+    <string name="pixel_sensor_title">👁️ Sensor Warna Piksel Computer Vision (Bebas pop-up Shorts)</string>
+    <string name="pixel_sensor_desc">Melakukan 1 klik tepat hanya saat tombol lewati putih muncul setelah hitungan mundur lingkaran kuning berakhir. Tanpa pop-up Shorts.</string>
+    <string name="switch_pixel_sensor">Aktifkan Sensor Warna Piksel (Android 11+)</string>
+    <string name="switch_shorts_dismiss">Lewati pop-up pemutusan Shorts otomatis (0,1 dtk)</string>
+    <string name="switch_qr_ad_dismiss">Tutup iklan belanja kode QR otomatis (0,1 dtk)</string>
+
+    <!-- Kartu Pembaruan OTA -->
+    <string name="ota_update_title">🚀 Versi Aplikasi &amp; Pembaruan Otomatis Nirkabel (OTA)</string>
+    <string name="app_version_default">Versi Saat Ini: v1.0.0 (Code 1)</string>
+    <string name="ota_update_desc">Saat APK baru dirilis di GitHub, aplikasi mendeteksinya saat mulai atau Anda dapat memeriksa secara manual.</string>
+    <string name="btn_check_update">🔄 Periksa Pembaruan Sekarang</string>
+    <string name="update_status_default">Status: Menunggu</string>
+
+    <!-- Kartu Log Diagnostik -->
+    <string name="runtime_log_title">📋 Log Diagnostik Peristiwa &amp; Volume/Lewati</string>
+    <string name="runtime_log_desc">Deteksi iklan, level volume, sensor piksel, dan klik lewati dicatat otomatis ke file lokal untuk diagnosis.</string>
+    <string name="btn_view_logs">📄 Lihat Log Langsung</string>
+    <string name="runtime_log_dialog_title">📋 Peristiwa &amp; Diagnostik Runtime (150 Baris Terakhir)</string>
+    <string name="btn_refresh_log">Segarkan</string>
+    <string name="btn_clear_log">Hapus Log</string>
+    <string name="btn_close">Tutup</string>
+    <string name="toast_log_cleared">Log berhasil dihapus.</string>
+
+    <string name="guide_title">Panduan Izin Android TV / Google TV</string>
+    <string name="guide_text">1. Klik [Buka Pengaturan Aksesibilitas] dan aktifkan \'Layanan Lewati Iklan TV YouTube\'.\n2. Pada Google TV 12/13+ dengan izin terbatas, berikan izin via ADB di PC.</string>
+    
+    <string name="adb_command_label">Perintah Izin ADB:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>

@@ -431,10 +431,6 @@ class MainActivity : AppCompatActivity() {
         binding.btnViewLogs.setOnClickListener {
             showLogViewerDialog()
         }
-
-        binding.btnShareLogs.setOnClickListener {
-            uploadLogsToDrive()
-        }
     }
 
     private fun showLogViewerDialog() {
@@ -452,41 +448,18 @@ class MainActivity : AppCompatActivity() {
         scrollView.addView(tvLogs)
 
         AlertDialog.Builder(this)
-            .setTitle("📋 런타임 이벤트 및 진단 로그 (최근 150줄)")
+            .setTitle(getString(R.string.runtime_log_dialog_title))
             .setView(scrollView)
-            .setPositiveButton("새로고침") { _, _ ->
+            .setPositiveButton(getString(R.string.btn_refresh_log)) { _, _ ->
                 tvLogs.text = AppLogger.getRecentLogs(150)
                 showLogViewerDialog()
             }
-            .setNeutralButton("로그 비우기") { _, _ ->
+            .setNeutralButton(getString(R.string.btn_clear_log)) { _, _ ->
                 AppLogger.clearLogs()
-                Toast.makeText(this, "로그가 초기화되었습니다.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_log_cleared), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("닫기", null)
+            .setNegativeButton(getString(R.string.btn_close), null)
             .show()
     }
-
-    private fun uploadLogsToDrive() {
-        val logFile = AppLogger.getLogFile()
-        if (logFile == null || !logFile.exists() || logFile.length() == 0L) {
-            Toast.makeText(this, "전송할 런타임 로그 기록이 없습니다.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        binding.btnShareLogs.isEnabled = false
-        binding.btnShareLogs.text = "전송 중..."
-        Toast.makeText(this, "☁️ 구글 드라이브로 로그 전송 중...", Toast.LENGTH_SHORT).show()
-
-        lifecycleScope.launch {
-            val result = AppLogger.uploadLogsToGoogleDrive()
-            binding.btnShareLogs.isEnabled = true
-            binding.btnShareLogs.text = "☁️ 구글 드라이브로 로그 전송"
-
-            result.onSuccess {
-                Toast.makeText(this@MainActivity, "✅ 구글 드라이브 전송 완료! (스프레드시트 확인)", Toast.LENGTH_LONG).show()
-            }.onFailure { error ->
-                Toast.makeText(this@MainActivity, "전송 실패: ${error.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
 }
+
