@@ -7,7 +7,7 @@
 
 > **An Android TV utility that automatically skips ads in the official YouTube TV app within 0.001 seconds when the skip countdown ends, and completely auto-mutes the hardware audio during non-skippable ads.**
 
-[**한국어 (Korean Default)**](README.md) | [**English (README_EN.md)**]
+[**🇰🇷 한국어 (기본)**](README.md) | [**🇺🇸 English**](README_EN.md) | [**🇯🇵 日本語**](README_JA.md) | [**🇪🇸 Español**](README_ES.md) | [**🇮🇳 हिन्दी**](README_HI.md) | [**🇨🇳 简体中文**](README_ZH.md) | [**🇷🇺 Русский**](README_RU.md) | [**🇵🇹 Português**](README_PT.md) | [**🇫🇷 Français**](README_FR.md) | [**🇩🇪 Deutsch**](README_DE.md) | [**🇮🇩 Bahasa Indonesia**](README_ID.md) | [**🇸🇦 العربية**](README_AR.md) | [**🇻🇳 Tiếng Việt**](README_VI.md)
 
 ---
 
@@ -62,19 +62,21 @@
 
 This project maintains **Korean as the primary and system default fallback**, followed by localized resources in order:
 
-1. 🇰🇷 **Korean (ko)** - *Primary & System Default*
-2. 🇺🇸 **English (en)**
-3. 🇯🇵 **Japanese (ja)**
-4. 🇪🇸 **Spanish (es)**
-5. 🇮🇳 **Hindi (hi)**
-6. 🇨🇳 **Chinese (zh-rCN / zh-rTW)**
-7. 🇷🇺 **Russian (ru)**
-8. 🇵🇹 **Portuguese (pt)**
-9. 🇫🇷 **French (fr)**
-10. 🇩🇪 **German (de)**
-11. 🇮🇩 **Indonesian (in / id)**
-12. 🇸🇦 **Arabic (ar)**
-13. 🇻🇳 **Vietnamese (vi)**
+| Language | Documentation (README) | Installation Guide | User Manual |
+| :--- | :---: | :---: | :---: |
+| 1. 🇰🇷 **Korean (ko)** *(Default)* | [README.md](README.md) | [설치 가이드](docs/INSTALLATION.md) | [사용설명서](docs/USER_MANUAL.md) |
+| 2. 🇺🇸 **English (en)** | [README_EN.md](README_EN.md) | [Installation Guide](docs/en/INSTALLATION.md) | [User Manual](docs/en/USER_MANUAL.md) |
+| 3. 🇯🇵 **Japanese (ja)** | [README_JA.md](README_JA.md) | [インストールガイド](docs/ja/INSTALLATION.md) | [ユーザーマニュアル](docs/ja/USER_MANUAL.md) |
+| 4. 🇪🇸 **Spanish (es)** | [README_ES.md](README_ES.md) | [Guía de instalación](docs/es/INSTALLATION.md) | [Manual de usuario](docs/es/USER_MANUAL.md) |
+| 5. 🇮🇳 **Hindi (hi)** | [README_HI.md](README_HI.md) | [इंस्टॉलेशन गाइड](docs/hi/INSTALLATION.md) | [उपयोगकर्ता मैनुअल](docs/hi/USER_MANUAL.md) |
+| 6. 🇨🇳 **Chinese (zh)** | [README_ZH.md](README_ZH.md) | [安装指南](docs/zh/INSTALLATION.md) | [用户手册](docs/zh/USER_MANUAL.md) |
+| 7. 🇷🇺 **Russian (ru)** | [README_RU.md](README_RU.md) | [Инструкция](docs/ru/INSTALLATION.md) | [Руководство](docs/ru/USER_MANUAL.md) |
+| 8. 🇵🇹 **Portuguese (pt)** | [README_PT.md](README_PT.md) | [Guia de instalação](docs/pt/INSTALLATION.md) | [Manual do usuário](docs/pt/USER_MANUAL.md) |
+| 9. 🇫🇷 **French (fr)** | [README_FR.md](README_FR.md) | [Guide d\'installation](docs/fr/INSTALLATION.md) | [Manuel d\'utilisation](docs/fr/USER_MANUAL.md) |
+| 10. 🇩🇪 **German (de)** | [README_DE.md](README_DE.md) | [Installationsanleitung](docs/de/INSTALLATION.md) | [Benutzerhandbuch](docs/de/USER_MANUAL.md) |
+| 11. 🇮🇩 **Indonesian (id)** | [README_ID.md](README_ID.md) | [Panduan Instalasi](docs/id/INSTALLATION.md) | [Panduan Pengguna](docs/id/USER_MANUAL.md) |
+| 12. 🇸🇦 **Arabic (ar)** | [README_AR.md](README_AR.md) | [دليل التثبيت](docs/ar/INSTALLATION.md) | [دليل المستخدم](docs/ar/USER_MANUAL.md) |
+| 13. 🇻🇳 **Vietnamese (vi)** | [README_VI.md](README_VI.md) | [Hướng dẫn cài đặt](docs/vi/INSTALLATION.md) | [Hướng dẫn sử dụng](docs/vi/USER_MANUAL.md) |
 
 ---
 
