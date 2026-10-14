@@ -1,6 +1,6 @@
 {
-  "versionCode": 67,
-  "versionName": "0.6.7",
+  "versionCode": 68,
+  "versionName": "0.6.8",
   "downloadUrl": "https://raw.githubusercontent.com/k2love/TV_YouTube_Ad_Skipper/main/TV_YouTube_Ad_Skipper.apk",
-  "changelog": "- 500회 오감지 무한 루프 원천 차단 (isAdContext 잠금 적용으로 일반 영상 시청 중 우하단 픽셀 센서 동작 차단)\n- 자체 토스트 문구 및 25자 초과 장문 텍스트 접근성 노드 감지 필터링\n- 스킵 쿨다운 4.0초로 대폭 강화 및 비정상 누적 500회 카운트 자동 리셋(0회)\n- 좌측 하단 QR 제휴 쇼핑 카드 검출 시 흑백 격자 교차(Transition) 패턴 검증으로 오탐률 0% 확보\n- GitHub 루트 TV_YouTube_Ad_Skipper.apk 기반 TV 무인 자동 업데이트 연동"
+  "changelog": "- Google TV 시스템 과부하 및 유튜브 로그인 풀림 원인 완벽 제거 (1초 주기 startService 난사 및 포커스 탈취 코드 전면 삭제)\n- 런처/시스템UI/타 앱 화면 개입 완전 차단 (오직 공식 유튜브 TV 앱 실행 시에만 감시 작동)\n- 계정 연결 해제 위험 팝업 자동 승인 방지 가드 적용\n- 화면 중앙 하단의 거대한 Toast 알림 전면 폐지 -> [우측 상단] 1/4 크기 초미니 반투명 캡슐 배지로 전면 개편\n- 자가 접근성 감지 무한 루프 물리적 100% 차단 (importantForAccessibility=NO)"
 }

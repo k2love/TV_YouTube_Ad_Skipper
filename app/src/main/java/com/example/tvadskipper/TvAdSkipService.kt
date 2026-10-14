@@ -15,9 +15,15 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.util.Log
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.view.Display
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.TextView
 import android.widget.Toast
 import kotlin.math.max
 import kotlin.math.min
@@ -56,6 +62,87 @@ class TvAdSkipService : AccessibilityService() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var isAnalyzingScreenshot = false
     private val qrSentinelIntervalMs = 1200L
+
+    private var windowManager: WindowManager? = null
+    private var miniBadgeView: TextView? = null
+    private var miniBadgeDismissRunnable: Runnable? = null
+
+    /**
+     * 🎯 [초미니 알림 배지 (Mini Pill Badge)]:
+     * 화면 중앙 하단의 거대한 토스트 대신, 화면 [우측 상단]에 기존 토스트의 1/4 크기로 작고 세련되게 표시!
+     * ⚠️ importantForAccessibility = NO로 설정하여 접근성 서비스의 자기 자신 감지 무한 루프를 물리적으로 100% 차단!
+     */
+    private fun showMiniBadge(text: String) {
+        if (!::prefs.isInitialized || !prefs.getBoolean(KEY_SHOW_TOAST, true)) return
+
+        mainHandler.post {
+            try {
+                if (windowManager == null) {
+                    windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+                }
+                val wm = windowManager ?: return@post
+
+                // 이전 배지가 떠 있으면 즉시 제거
+                miniBadgeDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+                if (miniBadgeView != null && miniBadgeView?.isAttachedToWindow == true) {
+                    try { wm.removeView(miniBadgeView) } catch (_: Exception) {}
+                    miniBadgeView = null
+                }
+
+                // 기존 토스트의 1/4 크기 초미니 캡슐 배지 생성
+                val badge = TextView(this).apply {
+                    this.text = text
+                    setTextColor(Color.WHITE)
+                    textSize = 11f
+                    setPadding(18, 6, 18, 6)
+                    val bg = GradientDrawable().apply {
+                        setColor(Color.parseColor("#E6202020")) // 진한 반투명 다크 그레이
+                        cornerRadius = 14f
+                        setStroke(1, Color.parseColor("#4DFFFFFF"))
+                    }
+                    background = bg
+                    // ⚠️ 포커스 및 접근성 트리에서 원천 배제 (리모컨 포커스 탈취 및 자가 감지 0%)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    isFocusable = false
+                    isClickable = false
+                }
+
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.END // 화면 맨 우측 상단
+                    x = 40 // 우측 마진 40px
+                    y = 30 // 상단 마진 30px
+                }
+
+                wm.addView(badge, params)
+                miniBadgeView = badge
+
+                // 1.2초 후 부드럽게 페이드아웃하며 소멸
+                val dismissRunnable = Runnable {
+                    try {
+                        if (miniBadgeView == badge && badge.isAttachedToWindow) {
+                            badge.animate().alpha(0f).setDuration(200).withEndAction {
+                                try { wm.removeView(badge) } catch (_: Exception) {}
+                                if (miniBadgeView == badge) miniBadgeView = null
+                            }.start()
+                        }
+                    } catch (_: Exception) {}
+                }
+                miniBadgeDismissRunnable = dismissRunnable
+                mainHandler.postDelayed(dismissRunnable, 1200L)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to show mini badge overlay", e)
+            }
+        }
+    }
 
     private val visualSentinelRunnable = object : Runnable {
         override fun run() {
@@ -99,30 +186,24 @@ class TvAdSkipService : AccessibilityService() {
     }
 
     private fun triggerPeriodicVisualCheck() {
-        ensureLoungeServiceAlive()
+        val rootNode = rootInActiveWindow
+        val activePkg = rootNode?.packageName?.toString() ?: ""
+
+        // ⚠️ Google TV 시스템 안정성 보호: 오직 공식 유튜브 TV 앱이 포그라운드일 때만 동작!
+        // 런처, 시스템 UI("android"), 설정 화면 등에서는 1바이트의 리소스도 쓰지 않고 즉시 반환
+        val isYouTubeTv = activePkg == "com.google.android.youtube.tv" ||
+                          activePkg == "com.google.android.youtube"
+        if (!isYouTubeTv) return
 
         val qrEnabled = prefs.getBoolean(KEY_QR_AD_AUTO_DISMISS, true)
         val pixelEnabled = prefs.getBoolean(KEY_PIXEL_SENSOR_ENABLED, true)
-
-        val rootNode = rootInActiveWindow
-        val activePkg = rootNode?.packageName?.toString() ?: ""
-        val isBlacklisted = activePkg.contains("launcher", ignoreCase = true) ||
-                            activePkg.contains("settings", ignoreCase = true) ||
-                            activePkg.contains("setupwraith", ignoreCase = true)
-        if (isBlacklisted) return
-
-        val isYouTubeOrOverlay = activePkg.isEmpty() ||
-                                 activePkg.contains("youtube", ignoreCase = true) ||
-                                 activePkg == "android"
-        if (!isYouTubeOrOverlay) return
-
         val currentTime = SystemClock.uptimeMillis()
 
         // 1. 센티넬 루프에서 우하단 광고 건너뛰기 접근성 노드 탐색
         if (currentTime - lastClickTime >= clickCooldownMs) {
             var skippedByNode = false
-            if (rootNode != null) {
-                skippedByNode = processNodeTree(rootNode, currentTime)
+            if (processNodeTree(rootNode, currentTime)) {
+                skippedByNode = true
             }
             if (!skippedByNode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 for (window in windows) {
@@ -138,7 +219,7 @@ class TvAdSkipService : AccessibilityService() {
 
         // 2. 좌측 하단 QR 쇼핑 광고 노드 탐색
         if (qrEnabled && currentTime - lastQrDismissTime >= qrDismissCooldownMs) {
-            if (rootNode != null && checkAndDismissQrAdOverlay(rootNode, currentTime)) {
+            if (checkAndDismissQrAdOverlay(rootNode, currentTime)) {
                 return
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -151,11 +232,10 @@ class TvAdSkipService : AccessibilityService() {
             }
         }
 
-        // 3. 픽셀 센서로 우하단 스킵 버튼 & 좌하단 QR 카드 동시 검사 (canTakeScreenshot="true" 필수)
+        // 3. 픽셀 센서: ⚠️ 시스템 과부하 및 프레임 드랍 방지를 위해 실제 광고 컨텍스트일 때만 실행!
         if (pixelEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (currentTime - lastClickTime >= clickCooldownMs ||
-                (qrEnabled && currentTime - lastQrDismissTime >= qrDismissCooldownMs)) {
-                val isAdContext = isCurrentScreenInAdContext(rootNode)
+            val isAdContext = isCurrentScreenInAdContext(rootNode)
+            if (isAdContext && currentTime - lastClickTime >= clickCooldownMs) {
                 val isChatVisible = isChatUiVisible(rootNode)
                 if (!isChatVisible) {
                     analyzeScreenPixelSensor(currentTime, isAdContext)
@@ -289,9 +369,10 @@ class TvAdSkipService : AccessibilityService() {
             return
         }
 
-        val isYouTubeContext = pkgName.contains("youtube", ignoreCase = true) ||
-                               activePkg.contains("youtube", ignoreCase = true) ||
-                               pkgName == "android" || activePkg == "android"
+        val isYouTubeContext = activePkg == "com.google.android.youtube.tv" ||
+                               activePkg == "com.google.android.youtube" ||
+                               pkgName == "com.google.android.youtube.tv" ||
+                               pkgName == "com.google.android.youtube"
 
         if (!isYouTubeContext) {
             return
@@ -391,7 +472,17 @@ class TvAdSkipService : AccessibilityService() {
     }
 
     private fun checkAndDismissShortsDialog(root: AccessibilityNodeInfo, currentTime: Long): Boolean {
-        if (isChatUiVisible(root)) return false
+        // ⚠️ 계정/로그아웃 보호: 사용자가 명시적으로 켰을 때만 작동 (기본값 false)
+        val shortsAutoDismiss = prefs.getBoolean(KEY_SHORTS_AUTO_DISMISS, false)
+        if (!shortsAutoDismiss || isChatUiVisible(root)) return false
+
+        // 계정 설정, 로그인, 프로필 관련 화면에서는 절대 동작 금지!
+        val accountKeywords = listOf("계정", "로그인", "로그아웃", "account", "sign in", "sign out", "비밀번호")
+        for (ak in accountKeywords) {
+            if (!root.findAccessibilityNodeInfosByText(ak).isNullOrEmpty()) {
+                return false
+            }
+        }
 
         var hasDisconnectPrompt = false
         for (kw in disconnectDialogKeywords) {
@@ -405,16 +496,15 @@ class TvAdSkipService : AccessibilityService() {
         if (!hasDisconnectPrompt) return false
 
         Log.i(TAG, "⚡ Detected casting disconnect prompt! Searching for dismiss button...")
-        for (btnKw in dismissButtonKeywords) {
+        val specificDismissButtons = listOf("전송 해제", "연결 해제", "전송 중지", "Stop casting", "Disconnect")
+        for (btnKw in specificDismissButtons) {
             val btnNodes = root.findAccessibilityNodeInfosByText(btnKw)
             if (!btnNodes.isNullOrEmpty()) {
                 for (btnNode in btnNodes) {
                     if (tryPerformClick(btnNode)) {
                         lastClickTime = currentTime
                         Log.i(TAG, "⚡ Successfully clicked disconnect confirmation button: $btnKw")
-                        mainHandler.post {
-                            Toast.makeText(this, "⚡ [쇼츠] 캐스팅 전송 해제 팝업 자동 승인 완료", Toast.LENGTH_SHORT).show()
-                        }
+                        showMiniBadge("⚡ 전송 해제")
                         return true
                     }
                 }
@@ -506,12 +596,7 @@ class TvAdSkipService : AccessibilityService() {
             }, 130L)
         }
 
-        val showToast = prefs.getBoolean(KEY_SHOW_TOAST, true)
-        if (showToast) {
-            mainHandler.post {
-                Toast.makeText(this, "🎯 [쇼핑 광고] QR 코드 광고 감지 및 닫기 실행", Toast.LENGTH_SHORT).show()
-            }
-        }
+        showMiniBadge("🎯 QR 닫기")
     }
 
     private fun onQrAdDismissed(currentTime: Long, triggerInfo: String) {
@@ -520,12 +605,7 @@ class TvAdSkipService : AccessibilityService() {
         Log.i(TAG, "🎯 Successfully dismissed QR Shopping Ad Overlay! ($triggerInfo)")
         AppLogger.i(TAG, "🎯 Successfully dismissed QR Shopping Ad Overlay! ($triggerInfo)")
 
-        val showToast = prefs.getBoolean(KEY_SHOW_TOAST, true)
-        if (showToast) {
-            mainHandler.post {
-                Toast.makeText(this, "🎯 [쇼핑 광고] QR 코드 광고 자동 닫기 완료", Toast.LENGTH_SHORT).show()
-            }
-        }
+        showMiniBadge("🎯 QR 닫기")
     }
 
     private fun processNodeTree(root: AccessibilityNodeInfo, currentTime: Long): Boolean {
@@ -627,23 +707,18 @@ class TvAdSkipService : AccessibilityService() {
 
         var executed = false
 
-        try {
-            node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-            node.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
-            node.performAction(AccessibilityNodeInfo.ACTION_SELECT)
-        } catch (_: Exception) {}
-
+        // ⚠️ Google TV 리모컨 포커스 보호: ACTION_FOCUS, ACTION_SELECT 전면 제거!
+        // 포커스를 억지로 뺏으면 계정/프로필 메뉴로 리모컨이 튀거나 로그아웃 위험 발생.
         var current: AccessibilityNodeInfo? = node
         var depth = 0
-        while (current != null && depth < 6) {
+        while (current != null && depth < 3) {
             try {
-                current.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-                if (current.isClickable || depth == 0) {
+                if (current.isClickable) {
                     val clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     if (clicked) {
                         Log.d(TAG, "Clicked node via ACTION_CLICK at depth $depth")
                         executed = true
-                        if (current.isClickable) break
+                        break
                     }
                 }
             } catch (_: Exception) {}
@@ -651,12 +726,13 @@ class TvAdSkipService : AccessibilityService() {
             depth++
         }
 
-        // Lounge의 순수 skipAd 전용 명령 동시 발송 (우측 상세창을 여는 ENTER는 보내지 않음)
+        // Lounge의 순수 skipAd 전용 명령 동시 발송
         try {
             LoungeManager.getInstance(this).sendSkipAdCommand()
         } catch (_: Exception) {}
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        // ⚠️ 노드 클릭이 이미 성공(executed == true)했다면 다른 화면 요소를 건드릴 수 있는 가상 터치는 생략!
+        if (!executed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             val displayMetrics: DisplayMetrics = resources.displayMetrics
             val screenWidth = displayMetrics.widthPixels
             val screenHeight = displayMetrics.heightPixels
@@ -674,7 +750,7 @@ class TvAdSkipService : AccessibilityService() {
                 )
             }
 
-            Log.d(TAG, "Injecting 2-step skip click gesture at ($targetX, $targetY)")
+            Log.d(TAG, "Fallback 2-step skip click gesture at ($targetX, $targetY)")
             performDoubleTapSkipGesture(targetX, targetY)
             executed = true
         }
@@ -974,17 +1050,13 @@ class TvAdSkipService : AccessibilityService() {
 
         if (::prefs.isInitialized) {
             val count = prefs.getInt(KEY_SKIP_COUNT, 0) + 1
-            val showToast = prefs.getBoolean(KEY_SHOW_TOAST, true)
             prefs.edit()
                 .putInt(KEY_SKIP_COUNT, count)
                 .putLong(KEY_LAST_SKIP_TIME, System.currentTimeMillis())
                 .apply()
 
-            if (showToast) {
-                mainHandler.post {
-                    Toast.makeText(this, "광고 건너뛰기 자동 실행 (${count}회)", Toast.LENGTH_SHORT).show()
-                }
-            }
+            // 🎯 화면 중앙 하단의 거대한 토스트 대신 [우측 상단] 1/4 크기 초미니 배지로 작고 깔끔하게 표시!
+            showMiniBadge("⚡ 스킵 완료")
         }
     }
 
@@ -995,6 +1067,10 @@ class TvAdSkipService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         stopVisualSentinelLoop()
+        if (miniBadgeView != null && miniBadgeView?.isAttachedToWindow == true) {
+            try { windowManager?.removeView(miniBadgeView) } catch (_: Exception) {}
+            miniBadgeView = null
+        }
         isServiceRunning = false
         instance = null
     }
