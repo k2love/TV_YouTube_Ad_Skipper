@@ -91,7 +91,7 @@ class TvAdSkipService : AccessibilityService() {
      */
     fun isAdOrCountdownCurrentlyOnScreen(): Boolean {
         val now = SystemClock.uptimeMillis()
-        return (now - lastAdUiSeenUptimeMs) < 2500L || (now - lastYellowCountdownSeenUptimeMs) < 2500L
+        return (now - lastAdUiSeenUptimeMs) < 2200L || (now - lastYellowCountdownSeenUptimeMs) < 2200L
     }
 
     /**
@@ -174,6 +174,15 @@ class TvAdSkipService : AccessibilityService() {
         if (scan.isAdUiVisible || scan.isCountdownVisible) {
             lastAdUiSeenUptimeMs = currentTime
             LoungeManager.getInstance(this).onAdDetectedFromLocalUi(scan.isCountdownVisible)
+        } else {
+            val lounge = LoungeManager.getInstance(this)
+            if (lounge.isAutoMuted) {
+                val noAdUiMs = currentTime - lastAdUiSeenUptimeMs
+                val noYellowMs = currentTime - lastYellowCountdownSeenUptimeMs
+                if (noAdUiMs >= 2000L && noYellowMs >= 2000L) {
+                    lounge.onAdEndedFromLocalUi()
+                }
+            }
         }
 
         // 1. 스킵 버튼 노드가 명확히 발견되었고 카운트다운 중이 아니면 즉시 클릭
@@ -310,6 +319,15 @@ class TvAdSkipService : AccessibilityService() {
             if (scan.isAdUiVisible || scan.isCountdownVisible) {
                 lastAdUiSeenUptimeMs = currentTime
                 LoungeManager.getInstance(this).onAdDetectedFromLocalUi(scan.isCountdownVisible)
+            } else {
+                val lounge = LoungeManager.getInstance(this)
+                if (lounge.isAutoMuted) {
+                    val noAdUiMs = currentTime - lastAdUiSeenUptimeMs
+                    val noYellowMs = currentTime - lastYellowCountdownSeenUptimeMs
+                    if (noAdUiMs >= 2000L && noYellowMs >= 2000L) {
+                        lounge.onAdEndedFromLocalUi()
+                    }
+                }
             }
 
             // 쇼츠 연결 해제 팝업 자동 통과
@@ -840,6 +858,8 @@ class TvAdSkipService : AccessibilityService() {
 
     private fun onAdSkipped(currentTime: Long, triggerInfo: String) {
         lastClickTime = currentTime
+        lastAdUiSeenUptimeMs = 0L
+        lastYellowCountdownSeenUptimeMs = 0L
         Log.i(TAG, "Successfully skipped YouTube Ad! ($triggerInfo)")
         AppLogger.i(TAG, "🎯 [Accessibility] Successfully skipped YouTube Ad! ($triggerInfo)")
 

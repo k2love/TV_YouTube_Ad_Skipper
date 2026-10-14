@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.tvadskipper"
         minSdk = 21
         targetSdk = 34
-        versionCode = 70
-        versionName = "0.7.0"
+        versionCode = 71
+        versionName = "0.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

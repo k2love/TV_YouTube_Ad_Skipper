@@ -485,10 +485,47 @@ class LoungeManager private constructor(context: Context) {
     }
 
     /**
-     * 접근성 서비스에서 실제 스킵 버튼을 클릭했을 때 호출 (무조건 볼륨 10으로 올리는 forceRestoreAudio 대신 안전 검증 후 복원)
+     * 접근성 서비스(UI 센티널)에서 화면 내 광고 UI와 카운트다운이 2초 이상 완전히 사라졌음을 감지했을 때 호출
+     * 스킵 불가 광고(5초/15초 강제 광고)가 끝까지 정상 재생되어 종료되었을 때 볼륨을 복원합니다.
+     */
+    fun onAdEndedFromLocalUi() {
+        if (!isAutoMuted) return
+        val now = SystemClock.elapsedRealtime()
+        val elapsedSinceAdStart = now - adStartTime
+        // 광고 시작 후 최소 3.5초 이상 경과했는지 검증 (초기 로딩 찰나의 플리커 방지)
+        if (elapsedSinceAdStart < 3500L) return
+
+        val uiHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
+        if (!uiHasAd && isAutoMuted) {
+            AppLogger.i(TAG, "🎬 [UI-Sentinel] Ad UI completely gone (>2s, elapsed=${elapsedSinceAdStart}ms). Restoring audio!")
+            isAdPlaying = false
+            isCurrentAdSkippable = false
+            adSkipCountdownJob?.cancel()
+            adPodBridgeJob?.cancel()
+            adEndVerifyJob?.cancel()
+            restoreAudio()
+        }
+    }
+
+    /**
+     * 접근성 서비스에서 실제 스킵 버튼을 클릭했을 때 호출
      */
     fun onAccessibilitySkipClicked() {
         sendSkipAdCommand()
+        // 스킵 터치 직후 600ms 대기 후 화면에 광고가 없으면 확실하게 볼륨 복원
+        loungeScope.launch {
+            delay(600)
+            val uiStillHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
+            if (!uiStillHasAd && isAutoMuted) {
+                AppLogger.i(TAG, "🎯 [Skip-Confirm] Ad UI clear after skip click. Restoring audio now!")
+                isAdPlaying = false
+                isCurrentAdSkippable = false
+                adSkipCountdownJob?.cancel()
+                adPodBridgeJob?.cancel()
+                adEndVerifyJob?.cancel()
+                restoreAudio()
+            }
+        }
     }
 
     private fun handleAppEvent(eventType: String, payload: JSONObject?) {
@@ -526,18 +563,18 @@ class LoungeManager private constructor(context: Context) {
                 val adVideoId = payload?.optString("adVideoId", "") ?: ""
                 AppLogger.i(TAG, "📢 Ad Event: adState=$adState, isSkipEnabled=$isSkipEnabled, adVideoId=$adVideoId, isAutoMuted=$isAutoMuted")
 
-                // 1. 실제 광고 슬롯 완전 종료: adState 1082, STOPPED, ENDED
-                if (adState == "1082" || adState.equals("STOPPED", ignoreCase = true) || adState.equals("ENDED", ignoreCase = true)) {
-                    AppLogger.i(TAG, "📢 Ad slot ended ($adState). Waiting 650ms for potential 2nd ad in pod...")
+                // 1. 실제 광고 슬롯 완전 종료: adState 1082, 0 (ENDED), STOPPED, ENDED
+                if (adState == "1082" || adState == "0" || adState.equals("STOPPED", ignoreCase = true) || adState.equals("ENDED", ignoreCase = true)) {
+                    AppLogger.i(TAG, "📢 Ad slot ended ($adState). Waiting 600ms for potential 2nd ad in pod...")
                     isAdPlaying = false
                     isCurrentAdSkippable = false
                     adSkipCountdownJob?.cancel()
                     adPodBridgeJob?.cancel()
                     adEndVerifyJob?.cancel()
                     adPodBridgeJob = loungeScope.launch {
-                        delay(650)
+                        delay(600)
                         val uiStillHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
-                        if (!isAdPlaying && !uiStillHasAd && isAutoMuted) {
+                        if (!uiStillHasAd && isAutoMuted) {
                             AppLogger.i(TAG, "📢 Ad slot finished confirmed. Restoring audio.")
                             restoreAudio()
                         }
@@ -546,7 +583,7 @@ class LoungeManager private constructor(context: Context) {
                 }
 
                 // 2. 광고 진행 상태 설정 및 즉시 음소거 적용
-                val adIsPlaying = adState == "1" || adState == "0" || adState == "-1" ||
+                val adIsPlaying = adState == "1" ||
                                   adState.equals("PLAYING", ignoreCase = true) ||
                                   eventType == "adPlaying" || adVideoId.isNotEmpty() ||
                                   isSkipEnabled.equals("true", ignoreCase = true)
@@ -674,19 +711,18 @@ class LoungeManager private constructor(context: Context) {
         adEndVerifyJob?.cancel()
         adEndVerifyJob = loungeScope.launch {
             delay(550)
-            val now = SystemClock.elapsedRealtime()
             val uiHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
-            val recentAdSignal = (now - lastAdSignalTime) < 2200L
-            if (!uiHasAd && !recentAdSignal) {
+            if (!uiHasAd) {
                 isAdPlaying = false
                 isCurrentAdSkippable = false
                 adSkipCountdownJob?.cancel()
+                adPodBridgeJob?.cancel()
                 if (isAutoMuted) {
                     AppLogger.i(TAG, "🎬 [Verified-MainVideo] $reason -> Restoring audio now!")
                     restoreAudio()
                 }
             } else {
-                AppLogger.i(TAG, "🛡️ [Ad-Lock] Blocked premature audio restore ($reason): uiHasAd=$uiHasAd, recentAdSignal=$recentAdSignal")
+                AppLogger.i(TAG, "🛡️ [Ad-Lock] Blocked audio restore ($reason): screen still shows active ad UI")
             }
         }
     }
@@ -765,6 +801,10 @@ class LoungeManager private constructor(context: Context) {
                 val targetVol = if (savedSystemVolume in 1..maxVol) savedSystemVolume else defaultVol
                 val flags = if (showOsd) AudioManager.FLAG_SHOW_UI else 0
                 am.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, flags)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && am.isStreamMute(AudioManager.STREAM_MUSIC)) {
+                    am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+                }
+                AppLogger.i(TAG, "🔊 [LocalHW-Restore] Hardware volume restored to $targetVol (saved=$savedSystemVolume, max=$maxVol)")
             }
         } catch (e: Exception) {
             Log.w(TAG, "restoreLocalHardwareAudio error", e)
@@ -930,16 +970,21 @@ class LoungeManager private constructor(context: Context) {
             if (success) {
                 onSkipCommandSucceeded()
                 AppLogger.i(TAG, "🎯 [Lounge] Successfully executed double-tap skipAd on TV!")
-
-                // 스킵 명령 후 900ms 대기 뒤 화면에 더 이상 광고/노란 카운트다운이 없을 때만 볼륨 복원
-                delay(900)
-                val uiStillHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
-                if (!isAdPlaying && !uiStillHasAd && isAutoMuted) {
-                    AppLogger.i(TAG, "🎯 [Lounge] Post-skip ad confirmed ended. Restoring audio.")
-                    restoreAudio()
-                }
             } else {
                 AppLogger.w(TAG, "⚠️ [Lounge] skipAd command returned failure or ignored by TV.")
+            }
+
+            // 스킵 명령 후 450ms 추가 대기(총 800ms) 뒤 화면에 더 이상 광고/노란 카운트다운이 없을 때 확실하게 볼륨 복원
+            delay(450)
+            val uiStillHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
+            if (!uiStillHasAd && isAutoMuted) {
+                AppLogger.i(TAG, "🎯 [Lounge] Post-skip ad confirmed ended. Restoring audio.")
+                isAdPlaying = false
+                isCurrentAdSkippable = false
+                adSkipCountdownJob?.cancel()
+                adPodBridgeJob?.cancel()
+                adEndVerifyJob?.cancel()
+                restoreAudio()
             }
         }
     }
