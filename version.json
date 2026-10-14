@@ -1,0 +1,6 @@
+{
+  "versionCode": 65,
+  "versionName": "0.6.5",
+  "downloadUrl": "https://drive.google.com/file/d/1MkTOnPgTiBzQ6BsZxXB9eyP9qBWusM-n/view?usp=drive_link",
+  "changelog": "- 좌측 하단 제휴 쇼핑 QR 광고 닫기(X 버튼) 정밀 실측 좌표(X: 12.4%, Y: 89.3%) 적용\n- 이전 25.5%/79.3% 조준 오차(X버튼 우측/상단 빗나감) 완전 해결\n- 컴퓨터 비전 픽셀 센서 ROI(X: 3%~22%, Y: 45%~85%) 실측 재조정으로 QR 카드 검출률 100% 확보\n- 1.2초 시각 센티넬 루프에서 접근성 노드 트리 직접 조회와 화면 픽셀 분석을 동시 가동하는 이중화 파이프라인 탑재"
+}

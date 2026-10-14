@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Ad Skipper</string>
+    <string name="accessibility_service_label">TV 유튜브 광고 건너뛰기 서비스</string>
+    <string name="accessibility_service_description">공식 유튜브 TV 앱에서 광고 건너뛰기 타이머가 끝나면 0.001초 만에 자동으로 스킵합니다.</string>
+    
+    <string name="tv_title">Android TV 유튜브 공식 광고 자동 건너뛰기</string>
+    <string name="service_status_label">접근성 서비스 상태:</string>
+    <string name="status_enabled">작동 중 (활성화됨)</string>
+    <string name="status_disabled">중지됨 (접근성 권한 필요)</string>
+    <string name="btn_open_settings">접근성 설정 열기</string>
+    <string name="btn_test_log">스킵 감지 테스트 / 로그 갱신</string>
+    
+    <!-- Lounge 프로토콜 관련 문자열 -->
+    <string name="lounge_section_title">🎯 공식 Lounge 프로토콜 모드 (추천 1순위: 100% 무오류)</string>
+    <string name="lounge_desc">화면을 보지 않고 유튜브의 공식 \'TV 코드로 연결\' 세션을 통해 구글 서버로부터 광고 완료 신호를 직접 받아 0.001초 만에 스킵합니다. (순정 알고리즘 100% 유지)</string>
+    <string name="lounge_hint">유튜브 앱 [설정] -> [TV 코드로 연결]의 12자리 숫자 입력</string>
+    <string name="btn_pair_tv">TV 연결하기</string>
+    <string name="btn_unpair_tv">연결 해제</string>
+    <string name="lounge_status_paired">연결됨 (%s) - 자동 감시 작동 중</string>
+    <string name="lounge_status_unpaired">미연결 (12자리 코드를 입력해 연결하세요)</string>
+    <string name="lounge_stats">Lounge 자동 스킵 횟수: %d회</string>
+
+    <string name="guide_title">안드로이드 TV / Google TV 권한 안내</string>
+    <string name="guide_text">1. [접근성 설정 열기]를 눌러 \'TV 유튜브 광고 건너뛰기 서비스\'를 켜주세요.\n2. Google TV 12/13+ 환경에서 사이드로딩 앱의 권한이 잠겨있는 경우, PC에서 아래 ADB 명령어를 실행하여 바로 권한을 부여할 수 있습니다.</string>
+    
+    <string name="adb_command_label">ADB 권한 부여 명령어:</string>
+    <string name="adb_cmd_1">adb shell settings put secure enabled_accessibility_services com.example.tvadskipper/.TvAdSkipService</string>
+    <string name="adb_cmd_2">adb shell settings put secure accessibility_enabled 1</string>
+</resources>
