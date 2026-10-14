@@ -1,6 +1,6 @@
-# 📺 TV YouTube Ad Skipper (안드로이드 TV 유튜브 광고 자동 스킵 & 음소거)
+﻿# 📺 TV YouTube Ad Skipper (안드로이드 TV 유튜브 광고 자동 스킵 & 음소거)
 
-[![Version](https://img.shields.io/badge/version-v0.8.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.8.1-blue.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Android%20TV%20%7C%20Google%20TV-green.svg)](docs/INSTALLATION.md)
 [![Language](https://img.shields.io/badge/language-한국어%20(기본)%20%2B%2012개국-orange.svg)](#-지원-언어-우선순위)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)

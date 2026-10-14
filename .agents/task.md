@@ -1,23 +1,20 @@
-# 작업 보드 (Task Board) - TV Ad Skipper
+# Task Board: 저사양 Google TV 최적화(Deep Sleep & Innertube QR) 통합 및 빌드 검증 (v0.8.1)
 
-## 📌 현재 스프린트: 한국어 기본 하네스 규칙 설정 및 GitHub 문서화 (설치법, 사용설명서, CHANGELOG)
-- **목표**: 
-  1. 언어 우선순위(한국어 최우선/기본 -> 영어 -> 일본어 -> 스페인어 -> 힌디어 -> 중국어 -> 러시아어 -> 포르투갈어 -> 프랑스어 -> 독일어 -> 인도네시아어 -> 아랍어 -> 베트남어) 확립.
-  2. 안드로이드 리소스 기본값(`values/strings.xml`)을 한국어로 재정렬하고 영어를 `values-en`으로 분리.
-  3. 프로젝트 하네스 규칙(`CLAUDE.md`, `.agents/harness_rules.md`)에 한국어 기본 원칙 명문화.
-  4. GitHub 상세 설치 가이드(`docs/INSTALLATION.md`), 상세 사용설명서(`docs/USER_MANUAL.md`), 전체 버전 이력(`CHANGELOG.md`), 메인 대시보드(`README.md`), 영문 대시보드(`README_EN.md`) 구축.
-  5. 빌드 검증, Git 커밋/푸시 및 E: 드라이브 미러링 동기화.
-
----
-
-## 📋 세부 작업 항목
-- [x] 1. 언어 우선순위 하네스 규칙 명문화 (`CLAUDE.md`, `.agents/harness_rules.md`)
-- [x] 2. 안드로이드 리소스 재정렬 (`values/strings.xml` 한국어 기본, `values-en/strings.xml` 영어)
-- [x] 3. 상세 설치법 작성 (`docs/INSTALLATION.md`)
-- [x] 4. 상세 사용설명서 작성 (`docs/USER_MANUAL.md`)
-- [x] 5. 버전별 업데이트 내용 요약 작성 (`CHANGELOG.md`)
-- [x] 6. 한국어 메인 대시보드 리뉴얼 (`README.md`)
-- [x] 7. 영문 메인 대시보드 작성 (`README_EN.md`)
-- [x] 8. Gradle 빌드 검증 (`./gradlew assembleDebug`)
-- [x] 9. 구현 계획서 보관 (`.agents/implementation_plan_github_docs_and_changelog_20261015.md`)
-- [ ] 10. Git 커밋 & 푸시 및 E: 드라이브 미러 저장소 동기화
+- [x] 1. 패치 파일 분석 및 통합 계획 수립 <!-- id: 1 -->
+  - [x] 사용자가 E 드라이브에 적용한 v0.7.1 패치 내역 전수 파악 (Deep Sleep, Innertube QR 메타데이터, config 경량화)
+  - [x] v0.8.0 기존 기능(13개 글로벌 다국어 키워드, 구글 드라이브 제거 상태, 한국어 우선 하네스 규칙) 보존 대상 식별
+  - [x] 계획서 작성 (`.agents/implementation_plan_deep_sleep_innertube_v0.8.1_20261015.md`)
+- [x] 2. 소스 코드 수술적 정밀 통합 (K: 및 E: 드라이브) <!-- id: 2 -->
+  - [x] `accessibility_service_config.xml`: 프레임 드랍 유발 플래그 제거 및 타임아웃 완화
+  - [x] `LoungeManager.kt`: Innertube API 쇼핑 메타데이터 사전 판별 + Deep Sleep 라이프사이클(`onAdStartedWakeUp`, `onAdEndedSleep`) 연동
+  - [x] `TvAdSkipService.kt`: 완전 동면(`setDynamicDormantState`, 런타임 eventTypes=0, 센티넬 정지) + 13개 언어 다국어 감지 및 오탐 방지 로직 병합
+  - [x] `AppLogger.kt`: 구글 드라이브 업로드 코드 유입 방지 및 순수 로컬 로거 유지
+  - [x] `app/build.gradle.kts` & `version.json`: `versionCode 81`, `versionName 0.8.1`로 판올림
+- [x] 3. 빌드 및 동작 무결성 검증 <!-- id: 3 -->
+  - [x] `./gradlew assembleDebug` 빌드 확인 (BUILD SUCCESSFUL)
+  - [x] 한글 리터럴 및 UTF-8 인코딩 손상 여부 전수 검사
+  - [x] 최신 APK(`TV_YouTube_Ad_Skipper.apk`) 생성 및 갱신
+- [x] 4. 문서화, Git 커밋, GitHub 푸시 및 E: 드라이브 미러링 <!-- id: 4 -->
+  - [x] `CHANGELOG.md` 및 `README.md`에 v0.8.1 릴리스 내역 반영
+  - [x] `.agents/walkthrough_deep_sleep_innertube_v0.8.1_20261015.md` 작성
+  - [ ] Git 커밋 & 원격 저장소(`main`) 푸시 및 E: 드라이브 동기화

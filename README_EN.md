@@ -1,6 +1,6 @@
-# 📺 TV YouTube Ad Skipper (Android TV YouTube Ad Auto Skipper & Mute)
+﻿# 📺 TV YouTube Ad Skipper (Android TV YouTube Ad Auto Skipper & Mute)
 
-[![Version](https://img.shields.io/badge/version-v0.8.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.8.1-blue.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Android%20TV%20%7C%20Google%20TV-green.svg)](docs/INSTALLATION.md)
 [![Language](https://img.shields.io/badge/language-Korean%20(Default)%20%2B%2012%20Global-orange.svg)](#-language-priority)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)

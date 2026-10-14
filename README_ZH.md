@@ -1,6 +1,6 @@
-# 📺 TV YouTube Ad Skipper (Android TV YouTube 广告自动跳过与静音)
+﻿# 📺 TV YouTube Ad Skipper (Android TV YouTube 广告自动跳过与静音)
 
-[![Version](https://img.shields.io/badge/version-v0.8.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.8.1-blue.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Android%20TV%20%7C%20Google%20TV-green.svg)](docs/zh/INSTALLATION.md)
 [![Language](https://img.shields.io/badge/language-中文-orange.svg)](#-语言支持)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)

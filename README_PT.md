@@ -1,6 +1,6 @@
-# 📺 TV YouTube Ad Skipper (Pular e Silenciar Anúncios do YouTube no Android TV)
+﻿# 📺 TV YouTube Ad Skipper (Pular e Silenciar Anúncios do YouTube no Android TV)
 
-[![Version](https://img.shields.io/badge/version-v0.8.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.8.1-blue.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Android%20TV%20%7C%20Google%20TV-green.svg)](docs/pt/INSTALLATION.md)
 [![Language](https://img.shields.io/badge/language-Português-orange.svg)](#-prioridade-de-idiomas)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)

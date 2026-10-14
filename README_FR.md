@@ -1,6 +1,6 @@
-# 📺 TV YouTube Ad Skipper (Saut et sourdine automatiques des publicités YouTube sur Android TV)
+﻿# 📺 TV YouTube Ad Skipper (Saut et sourdine automatiques des publicités YouTube sur Android TV)
 
-[![Version](https://img.shields.io/badge/version-v0.8.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.8.1-blue.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Android%20TV%20%7C%20Google%20TV-green.svg)](docs/fr/INSTALLATION.md)
 [![Language](https://img.shields.io/badge/language-Français-orange.svg)](#-priorité-des-langues)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)

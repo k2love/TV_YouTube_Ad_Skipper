@@ -1,6 +1,6 @@
-# 📺 TV YouTube Ad Skipper (Автопропуск и автозаглушение рекламы YouTube для Android TV)
+﻿# 📺 TV YouTube Ad Skipper (Автопропуск и автозаглушение рекламы YouTube для Android TV)
 
-[![Version](https://img.shields.io/badge/version-v0.8.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.8.1-blue.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Android%20TV%20%7C%20Google%20TV-green.svg)](docs/ru/INSTALLATION.md)
 [![Language](https://img.shields.io/badge/language-Русский-orange.svg)](#-приоритет-языков)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)

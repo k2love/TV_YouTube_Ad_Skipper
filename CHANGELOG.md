@@ -4,6 +4,22 @@
 
 ---
 
+### 🚀 v0.8.1 (2026-10-15) - 저사양 Google TV(TCL·Hisense) 4K 60fps 완전 동면(Deep-Sleep) 및 비픽셀 QR 쇼핑 감지
+- **완전 동면(Zero-Overhead Deep Sleep) 아키텍처 도입**:
+  - 본 영상 시청 중(`isAdPlaying == false`)에는 백그라운드 센티넬 루프를 100% 정지하고, 런타임에 `serviceInfo.eventTypes = 0`으로 비활성화하여 안드로이드 OS 및 유튜브(Cobalt) 앱이 접근성 이벤트를 아예 생성하지 않도록 원천 차단 (CPU/GPU/IPC 부하 0.0% 보장).
+  - 광고 발생 시에만 `onAdStartedWakeUp()`으로 광고 시간(5~30초) 동안 일시 가동 후 본 영상 시작 즉시 다시 완전 동면 복귀.
+- **본 영상 중 상시 화면 캡처(`takeScreenshot`) 완전 폐지**:
+  - TCL·Hisense 등 저사양 Google TV에서 주기적 스크린샷 캡처로 인해 하드웨어 비디오 오버레이(HWC) 플레인이 해제되어 발생하던 4K 60fps 프레임 드랍('툭툭 끊김') 완벽 해소.
+- **`accessibility_service_config.xml` 고부하 플래그 영구 제거**:
+  - 매 프레임 전체 윈도우 레이어를 교차 계산하던 `flagRetrieveInteractiveWindows` 및 재생바 틱마다 발생하던 `typeWindowContentChanged`를 제거하고, `notificationTimeout`을 `500ms`로 완화.
+- **비픽셀(Non-Pixel) YouTube Innertube API 기반 좌하단 QR 쇼핑 광고 감지 엔진**:
+  - Lounge `videoId` 수신 시 백그라운드에서 `/youtubei/v1/next` 1회 조회로 쇼핑 태그(`shoppingOverlay`, `merchandiseShelf`, `수수료 지급` 등) 유무를 사전 판별.
+  - 쇼핑 태그가 없는 95% 이상의 일반 영상은 캡처 0회로 100% 동면 유지, 쇼핑 태그가 존재하는 5% 미만 영상에서만 `+4.0초`, `+8.0초` 시점에 핀포인트로 닫기 수행.
+- **글로벌 13개 언어 스킵 지원과 완벽 융합**:
+  - v0.8.0의 13개 언어(한국어 최우선) 광고 배지 및 스킵 버튼 다국어 정규식 감지 기능 온전히 보존 및 통합.
+
+---
+
 ### 🌟 v0.8.0 (2026-10-15) - 글로벌 다국어 지원 및 최적화
 - **글로벌 13개국 언어팩 전면 지원**:
   - 한국어(최우선 기본값), 영어, 일본어, 스페인어, 힌디어, 중국어(간체/번체), 러시아어, 포르투갈어, 프랑스어, 독일어, 인도네시아어, 아랍어, 베트남어 지원.

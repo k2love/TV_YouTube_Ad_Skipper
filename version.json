@@ -1,6 +1,6 @@
 {
-  "versionCode": 80,
-  "versionName": "0.8.0",
+  "versionCode": 81,
+  "versionName": "0.8.1",
   "downloadUrl": "https://raw.githubusercontent.com/k2love/TV_YouTube_Ad_Skipper/main/TV_YouTube_Ad_Skipper.apk",
-  "changelog": "- 글로벌 다국어 지원 (영어 기본, 한국어, 일본어, 중국어 간/번체, 힌디어, 스페인어, 포르투갈어, 러시아어, 프랑스어, 독일어, 인도네시아어, 아랍어, 베트남어)\n- 전 세계 각국 유튜브 TV 앱 광고 배지 및 스킵 버튼 다국어 감지 알고리즘 적용\n- 구글 드라이브 로그 업로드 기능 및 종속성 제거 (로컬 진단 로그 뷰어 유지)\n- activity_main.xml 레이아웃 하드코딩 텍스트 전수 리소스화"
+  "changelog": "- 저사양 Google TV(TCL/Hisense 등) 4K 60fps 끊김 완벽 해결: 본 영상 시청 중 접근성 폴링·화면 캡처·이벤트 수신을 100% 정지하는 '완전 동면(Deep-Sleep) 아키텍처' 도입\n- accessibility_service_config.xml에서 프레임 드랍 유발 플래그(flagRetrieveInteractiveWindows, typeWindowContentChanged) 영구 제거\n- 비픽셀 방식의 좌하단 QR 쇼핑 광고 감지 도입: 상시 화면 캡처 대신 Lounge videoId 기반 YouTube Innertube API(/youtubei/v1/next) 쇼핑 메타데이터 사전 판별 기법 적용\n- 글로벌 다국어 지원: 13개 언어(한국어, 영어, 일본어, 중국어 간/번체, 힌디어, 스페인어, 포르투갈어, 러시아어, 프랑스어, 독일어, 인도네시아어, 아랍어, 베트남어) 광고 배지 및 스킵 버튼 다국어 감지 알고리즘 통합 보존\n- 강제 광고 0.001초 즉시 무음 및 3~5초 시점 볼륨 최대(10) 조기 복원 원천 차단 유지"
 }

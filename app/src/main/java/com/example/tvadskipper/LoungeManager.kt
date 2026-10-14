@@ -16,8 +16,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -30,6 +32,7 @@ class LoungeManager private constructor(context: Context) {
     companion object {
         private const val TAG = "LoungeManager"
         private const val BASE_URL = "https://www.youtube.com/api/lounge"
+        private const val INNERTUBE_NEXT_URL = "https://www.youtube.com/youtubei/v1/next?prettyPrint=false"
 
         const val PREFS_KEY_SCREEN_ID = "lounge_screen_id"
         const val PREFS_KEY_LOUNGE_TOKEN = "lounge_token"
@@ -62,6 +65,11 @@ class LoungeManager private constructor(context: Context) {
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    private val metadataClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .build()
+
     private var sid: String? = null
     private var gsessionid: String? = null
     private val commandOffset = AtomicInteger(1)
@@ -92,6 +100,8 @@ class LoungeManager private constructor(context: Context) {
     @Volatile
     private var currentMainVideoId = ""
     @Volatile
+    private var lastCheckedShoppingVideoId = ""
+    @Volatile
     private var lastEventDescCache = "대기 중"
     @Volatile
     private var lastEventPrefsSaveTime = 0L
@@ -102,6 +112,7 @@ class LoungeManager private constructor(context: Context) {
     private var adPodBridgeJob: Job? = null
     private var adEndVerifyJob: Job? = null
     private var adSkipCountdownJob: Job? = null
+    private var shoppingMetadataJob: Job? = null
 
     @Volatile
     private var bootSkipCount = 0
@@ -189,9 +200,6 @@ class LoungeManager private constructor(context: Context) {
         }
     }
 
-    /**
-     * 영구 screenId를 이용해 만료된 loungeToken을 새로 발급받는 함수
-     */
     private fun refreshLoungeToken(): Boolean {
         val screenId = prefs.getString(PREFS_KEY_SCREEN_ID, null) ?: return false
         return try {
@@ -249,6 +257,7 @@ class LoungeManager private constructor(context: Context) {
         adPodBridgeJob?.cancel()
         adEndVerifyJob?.cancel()
         muteConfirmJob?.cancel()
+        shoppingMetadataJob?.cancel()
         onStatusChanged?.invoke(false, "연결 끊김")
     }
 
@@ -278,6 +287,10 @@ class LoungeManager private constructor(context: Context) {
                 }
 
                 onStatusChanged?.invoke(true, "유튜브 TV 실시간 감시 작동 중")
+                // 세션 연결 직후 광고가 없으면 접근성 서비스를 즉시 동면 모드로 전환하여 TV 성능 보호
+                if (!isAdPlaying) {
+                    TvAdSkipService.instance?.onAdEndedSleep()
+                }
                 subscribeStream()
             } catch (e: Exception) {
                 Log.w(TAG, "Lounge loop error, reconnecting in 5s: ${e.message}")
@@ -461,10 +474,6 @@ class LoungeManager private constructor(context: Context) {
         }
     }
 
-    /**
-     * 접근성 서비스(로컬 UI 텍스트 또는 노란색 카운트다운 원형 픽셀)에서 광고를 감지했을 때
-     * 네트워크 지연을 기다리지 않고 0.001초 만에 즉시 하드웨어+Lounge 음소거를 발동시키는 고속 트리거
-     */
     fun onAdDetectedFromLocalUi(isCountdownActive: Boolean) {
         val now = SystemClock.elapsedRealtime()
         lastAdSignalTime = now
@@ -475,6 +484,7 @@ class LoungeManager private constructor(context: Context) {
             isAdPlaying = true
             adStartTime = now
             AppLogger.i(TAG, "⚡ [Fast-UI-AdDetect] Ad detected locally on screen (countdown=$isCountdownActive)! Muting in 0ms.")
+            TvAdSkipService.instance?.onAdStartedWakeUp()
         }
         if (isCountdownActive) {
             isCurrentAdSkippable = false
@@ -484,46 +494,74 @@ class LoungeManager private constructor(context: Context) {
         }
     }
 
-    /**
-     * 접근성 서비스(UI 센티널)에서 화면 내 광고 UI와 카운트다운이 2초 이상 완전히 사라졌음을 감지했을 때 호출
-     * 스킵 불가 광고(5초/15초 강제 광고)가 끝까지 정상 재생되어 종료되었을 때 볼륨을 복원합니다.
-     */
-    fun onAdEndedFromLocalUi() {
-        if (!isAutoMuted) return
-        val now = SystemClock.elapsedRealtime()
-        val elapsedSinceAdStart = now - adStartTime
-        // 광고 시작 후 최소 3.5초 이상 경과했는지 검증 (초기 로딩 찰나의 플리커 방지)
-        if (elapsedSinceAdStart < 3500L) return
-
-        val uiHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
-        if (!uiHasAd && isAutoMuted) {
-            AppLogger.i(TAG, "🎬 [UI-Sentinel] Ad UI completely gone (>2s, elapsed=${elapsedSinceAdStart}ms). Restoring audio!")
-            isAdPlaying = false
-            isCurrentAdSkippable = false
-            adSkipCountdownJob?.cancel()
-            adPodBridgeJob?.cancel()
-            adEndVerifyJob?.cancel()
-            restoreAudio()
-        }
+    fun onAccessibilitySkipClicked() {
+        sendSkipAdCommand()
     }
 
     /**
-     * 접근성 서비스에서 실제 스킵 버튼을 클릭했을 때 호출
+     * 🔍 [비픽셀 QR 쇼핑 광고 사전 판별 엔진]:
+     * 상시 화면 캡처(takeScreenshot)로 TV 성능을 깎아먹는 대신,
+     * 새 영상(videoId)이 시작될 때 YouTube Innertube API(/youtubei/v1/next)로 해당 영상에
+     * 제휴 쇼핑 상품(shopping/merchandise/featuredProduct) 메타데이터가 존재하는지 단 1회 네트워크 조회!
+     * - 쇼핑 태그가 없는 95% 이상의 일반 영상에서는 아무 동작도 하지 않아 4K 60fps 끊김 0%!
+     * - 쇼핑 태그가 있는 영상에서만 본 영상 진입 후 +4초, +8초에 핀포인트 닫기를 수행!
      */
-    fun onAccessibilitySkipClicked() {
-        sendSkipAdCommand()
-        // 스킵 터치 직후 600ms 대기 후 화면에 광고가 없으면 확실하게 볼륨 복원
-        loungeScope.launch {
-            delay(600)
-            val uiStillHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
-            if (!uiStillHasAd && isAutoMuted) {
-                AppLogger.i(TAG, "🎯 [Skip-Confirm] Ad UI clear after skip click. Restoring audio now!")
-                isAdPlaying = false
-                isCurrentAdSkippable = false
-                adSkipCountdownJob?.cancel()
-                adPodBridgeJob?.cancel()
-                adEndVerifyJob?.cancel()
-                restoreAudio()
+    private fun checkVideoShoppingMetadataAsync(videoId: String) {
+        if (videoId.isEmpty() || videoId == lastCheckedShoppingVideoId) return
+        lastCheckedShoppingVideoId = videoId
+
+        shoppingMetadataJob?.cancel()
+        shoppingMetadataJob = loungeScope.launch {
+            try {
+                val requestJson = """
+                    {
+                      "context": {
+                        "client": {
+                          "clientName": "TVHTML5",
+                          "clientVersion": "7.20260401.10.00",
+                          "hl": "ko",
+                          "gl": "KR"
+                        }
+                      },
+                      "videoId": "$videoId"
+                    }
+                """.trimIndent()
+
+                val body = requestJson.toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+                val req = Request.Builder()
+                    .url(INNERTUBE_NEXT_URL)
+                    .post(body)
+                    .build()
+
+                val hasShoppingTag = metadataClient.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return@use false
+                    val raw = resp.body?.string() ?: return@use false
+                    raw.contains("shoppingOverlay", ignoreCase = true) ||
+                        raw.contains("featuredProduct", ignoreCase = true) ||
+                        raw.contains("merchandiseShelf", ignoreCase = true) ||
+                        raw.contains("productListRenderer", ignoreCase = true) ||
+                        raw.contains("shoppingDrawer", ignoreCase = true) ||
+                        raw.contains("수수료 지급") ||
+                        raw.contains("제품 보기")
+                }
+
+                if (!hasShoppingTag) {
+                    Log.d(TAG, "✅ [Innertube-ShoppingCheck] No shopping tags in video ($videoId). Staying in 0% CPU deep sleep.")
+                    return@launch
+                }
+
+                AppLogger.i(TAG, "🛒 [Innertube-ShoppingCheck] Shopping product metadata detected in video ($videoId)! Scheduling targeted QR check.")
+                // 본 영상 시작 후 QR 카드가 등장하는 +4.0초, +8.0초 시점에만 핀포인트 확인
+                delay(4000L)
+                if (!isAdPlaying && currentMainVideoId == videoId) {
+                    TvAdSkipService.instance?.performTargetedQrDismissFromMetadata(videoId)
+                }
+                delay(4000L)
+                if (!isAdPlaying && currentMainVideoId == videoId) {
+                    TvAdSkipService.instance?.performTargetedQrDismissFromMetadata(videoId)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Innertube shopping metadata check skipped: ${e.message}")
             }
         }
     }
@@ -548,7 +586,6 @@ class LoungeManager private constructor(context: Context) {
                         savedVolumeBeforeMute = vol
                         prefs.edit().putInt(PREFS_KEY_SAVED_VOLUME, vol).apply()
                     } else if (isAdPlaying && isAutoMuted && isAutoMuteEnabled()) {
-                        // 🛡️ [Mute-Guard]: 강제 광고 재생 도중(3~5초 시점 등) 유튜브 플레이어가 자체적으로 볼륨을 올리려 하면 즉시 0으로 재잠금!
                         AppLogger.i(TAG, "🛡️ [Mute-Guard] YouTube raised volume to $vol during active ad! Clamping back to 0 immediately.")
                         applyLocalHardwareMute()
                         loungeScope.launch {
@@ -563,27 +600,34 @@ class LoungeManager private constructor(context: Context) {
                 val adVideoId = payload?.optString("adVideoId", "") ?: ""
                 AppLogger.i(TAG, "📢 Ad Event: adState=$adState, isSkipEnabled=$isSkipEnabled, adVideoId=$adVideoId, isAutoMuted=$isAutoMuted")
 
-                // 1. 실제 광고 슬롯 완전 종료: adState 1082, 0 (ENDED), STOPPED, ENDED
-                if (adState == "1082" || adState == "0" || adState.equals("STOPPED", ignoreCase = true) || adState.equals("ENDED", ignoreCase = true)) {
-                    AppLogger.i(TAG, "📢 Ad slot ended ($adState). Waiting 600ms for potential 2nd ad in pod...")
+                // 1. 실제 광고 슬롯 완전 종료: adState 1082, STOPPED, ENDED
+                if (adState == "1082" || adState.equals("STOPPED", ignoreCase = true) || adState.equals("ENDED", ignoreCase = true)) {
+                    AppLogger.i(TAG, "📢 Ad slot ended ($adState). Waiting 650ms for potential 2nd ad in pod...")
                     isAdPlaying = false
                     isCurrentAdSkippable = false
                     adSkipCountdownJob?.cancel()
                     adPodBridgeJob?.cancel()
                     adEndVerifyJob?.cancel()
                     adPodBridgeJob = loungeScope.launch {
-                        delay(600)
+                        delay(650)
                         val uiStillHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
-                        if (!uiStillHasAd && isAutoMuted) {
-                            AppLogger.i(TAG, "📢 Ad slot finished confirmed. Restoring audio.")
-                            restoreAudio()
+                        if (!isAdPlaying && !uiStillHasAd) {
+                            if (isAutoMuted) {
+                                AppLogger.i(TAG, "📢 Ad slot finished confirmed. Restoring audio.")
+                                restoreAudio()
+                            }
+                            // 광고가 끝났으므로 접근성 서비스를 즉시 0% 부하 동면 모드로 전환!
+                            TvAdSkipService.instance?.onAdEndedSleep()
+                            if (currentMainVideoId.isNotEmpty()) {
+                                checkVideoShoppingMetadataAsync(currentMainVideoId)
+                            }
                         }
                     }
                     return
                 }
 
-                // 2. 광고 진행 상태 설정 및 즉시 음소거 적용
-                val adIsPlaying = adState == "1" ||
+                // 2. 광고 진행 상태 설정 및 즉시 음소거 적용 + 접근성 서비스 일시 깨우기(Wake-Up)
+                val adIsPlaying = adState == "1" || adState == "0" || adState == "-1" ||
                                   adState.equals("PLAYING", ignoreCase = true) ||
                                   eventType == "adPlaying" || adVideoId.isNotEmpty() ||
                                   isSkipEnabled.equals("true", ignoreCase = true)
@@ -598,6 +642,9 @@ class LoungeManager private constructor(context: Context) {
                     this.isAdPlaying = true
                     this.isCurrentAdSkippable = isSkipEnabled.equals("true", ignoreCase = true)
 
+                    // 광고 시간 동안만 접근성 센티넬 깨우기
+                    TvAdSkipService.instance?.onAdStartedWakeUp()
+
                     if (isAutoMuteEnabled()) {
                         muteAudio()
                     }
@@ -611,30 +658,29 @@ class LoungeManager private constructor(context: Context) {
                             AppLogger.w(TAG, "Failed to trigger direct screen skip", e)
                         }
                     } else {
-                        // 스킵 불가(또는 카운트다운 진행 중) 광고: 오직 순수 네트워크 skipAd만 조용히 예약하고
-                        // 화면 강제 터치나 볼륨 강제 복원(forceRestoreAudio)은 절대 호출하지 않음!
                         scheduleAdSkipCountdownRetries()
                     }
                 }
             }
             "onStateChange" -> {
                 val state = payload?.optInt("state", -1) ?: -1
-                // ⚠️ 주의: state == 5 (VIDEO_CUED)는 프리롤 광고가 재생되는 동안 본 영상이 대기(Cued) 상태일 때
-                // 광고 시작 2~4초 후 흔히 수신되므로, 광고 중일 때는 절대 종료로 처리하면 안 됨!
                 if (state == 0 && !isAdPlaying && isAutoMuted) {
                     AppLogger.i(TAG, "🎬 [StateChange=0] Video ended with no active ad. Restoring audio.")
                     restoreAudio()
+                    TvAdSkipService.instance?.onAdEndedSleep()
                 } else if (state == 1 && isAdPlaying) {
-                    // 광고 도중 state=1이 올 수 있으므로, 충분한 시간이 지났고 화면에 광고 UI가 없을 때만 본 영상 복귀 검증
                     val elapsedSinceAdStart = now - adStartTime
                     val elapsedSinceLastAdSignal = now - lastAdSignalTime
                     val uiHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
                     if (elapsedSinceAdStart >= 5200L && elapsedSinceLastAdSignal >= 3500L && !uiHasAd) {
                         scheduleMainVideoRestoreVerification("StateChange=1 after ad window")
                     }
-                } else if (state == 1 && !isAdPlaying && isAutoMuted) {
-                    AppLogger.i(TAG, "🎬 [StateChange=1] Main playback active. Ensuring audio restored.")
-                    restoreAudio()
+                } else if (state == 1 && !isAdPlaying) {
+                    if (isAutoMuted) {
+                        AppLogger.i(TAG, "🎬 [StateChange=1] Main playback active. Ensuring audio restored.")
+                        restoreAudio()
+                    }
+                    TvAdSkipService.instance?.onAdEndedSleep()
                 }
             }
             "nowPlaying" -> {
@@ -655,12 +701,12 @@ class LoungeManager private constructor(context: Context) {
                     if (videoId.isNotEmpty()) {
                         currentMainVideoId = videoId
                     }
+                    TvAdSkipService.instance?.onAdStartedWakeUp()
                     if (isAutoMuteEnabled()) {
                         muteAudio()
                     }
                     scheduleAdSkipCountdownRetries()
                 } else if (videoId.isEmpty()) {
-                    // 홈 화면으로 완전히 나간 경우(뒤로가기)
                     AppLogger.i(TAG, "🎬 [NowPlaying] Empty videoId (Home/Back). Resetting ad state & restoring audio.")
                     isAdPlaying = false
                     isCurrentAdSkippable = false
@@ -671,10 +717,8 @@ class LoungeManager private constructor(context: Context) {
                     if (isAutoMuted) {
                         restoreAudio()
                     }
+                    TvAdSkipService.instance?.onAdEndedSleep()
                 } else {
-                    // videoId가 존재하고 광고 필드가 없는 경우:
-                    // ⚠️ 핵심 방어: 광고 시작 후 0~4.8초 사이에 본 영상의 메타데이터(nowPlaying)가 지연 도착하는 경우가 매우 흔함!
-                    // 이때 무조건 isAdPlaying = false로 풀면 광고 시작 3~4초 만에 음소거가 풀리고 볼륨이 최대로 올라가는 버그 발생!
                     val isSameVideo = currentMainVideoId.isEmpty() || currentMainVideoId == videoId
                     currentMainVideoId = videoId
                     val elapsedSinceAdStart = now - adStartTime
@@ -685,6 +729,7 @@ class LoungeManager private constructor(context: Context) {
                         AppLogger.i(TAG, "🛡️ [Ad-Lock] Ignoring mid-ad nowPlaying packet (elapsed=${elapsedSinceAdStart}ms, uiHasAd=$uiHasAd) to keep forced ad muted!")
                     } else {
                         scheduleMainVideoRestoreVerification("Pure nowPlaying ($videoId)")
+                        checkVideoShoppingMetadataAsync(videoId)
                     }
                 }
             }
@@ -704,34 +749,29 @@ class LoungeManager private constructor(context: Context) {
         }
     }
 
-    /**
-     * 본 영상 진입으로 판단될 때 550ms 대기 후 실제로 후속 광고나 화면 내 노란 카운트다운이 없는지 확인하고 안전하게 볼륨 복원
-     */
     private fun scheduleMainVideoRestoreVerification(reason: String) {
         adEndVerifyJob?.cancel()
         adEndVerifyJob = loungeScope.launch {
             delay(550)
+            val now = SystemClock.elapsedRealtime()
             val uiHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
-            if (!uiHasAd) {
+            val recentAdSignal = (now - lastAdSignalTime) < 2200L
+            if (!uiHasAd && !recentAdSignal) {
                 isAdPlaying = false
                 isCurrentAdSkippable = false
                 adSkipCountdownJob?.cancel()
-                adPodBridgeJob?.cancel()
                 if (isAutoMuted) {
                     AppLogger.i(TAG, "🎬 [Verified-MainVideo] $reason -> Restoring audio now!")
                     restoreAudio()
                 }
+                // 본 영상 진입 확정 시 접근성 서비스는 즉시 완전 동면(Deep Sleep)으로 전환!
+                TvAdSkipService.instance?.onAdEndedSleep()
             } else {
-                AppLogger.i(TAG, "🛡️ [Ad-Lock] Blocked audio restore ($reason): screen still shows active ad UI")
+                AppLogger.i(TAG, "🛡️ [Ad-Lock] Blocked premature audio restore ($reason): uiHasAd=$uiHasAd, recentAdSignal=$recentAdSignal")
             }
         }
     }
 
-    /**
-     * 광고 시작 후 5초 카운트다운 종료 시점에 순수 네트워크 skipAd 명령만 조용히 전송하는 타이머.
-     * ⚠️ 중요: 강제 광고(15초/20초/30초) 도중 5.2초에 화면을 강제 클릭하거나 forceRestoreAudio()를 호출하여
-     * 볼륨이 10(최대)으로 올라가 버리던 버그를 원천 차단!
-     */
     private fun scheduleAdSkipCountdownRetries() {
         if (adSkipCountdownJob?.isActive == true) return
 
@@ -741,7 +781,6 @@ class LoungeManager private constructor(context: Context) {
                 delay(waitMs)
                 if (!isAdPlaying || !isConnected) break
 
-                // 화면 우하단에 노란색 원형 카운트다운(강제 광고 진행 중)이 명백히 돌고 있다면 불필요한 스킵 명령 생략
                 if (TvAdSkipService.instance?.isYellowCountdownActive() == true && !isCurrentAdSkippable) {
                     continue
                 }
@@ -749,7 +788,6 @@ class LoungeManager private constructor(context: Context) {
                 AppLogger.i(TAG, "⏱️ [Ad-Countdown-Timer] Probing silent network skipAd")
                 sendCommand("skipAd")
 
-                // 오직 실제 접근성 트리에 클릭 가능한 스킵 버튼 노드가 존재할 때만 노드 클릭 시도 (블라인드 터치 및 볼륨 강제복원 금지)
                 try {
                     TvAdSkipService.instance?.tryClickVisibleSkipNodeOnly()
                 } catch (_: Exception) {}
@@ -766,9 +804,6 @@ class LoungeManager private constructor(context: Context) {
         onAdSkippedCallback?.invoke(bootSkipCount)
     }
 
-    /**
-     * 로컬 안드로이드 TV 하드웨어 오디오 스트림(STREAM_MUSIC)을 OSD 팝업 없이 0.001초 만에 즉시 무음 처리
-     */
     private fun applyLocalHardwareMute() {
         try {
             audioManager?.let { am ->
@@ -787,9 +822,6 @@ class LoungeManager private constructor(context: Context) {
         }
     }
 
-    /**
-     * 로컬 안드로이드 TV 하드웨어 오디오 스트림(STREAM_MUSIC)을 광고 이전 볼륨으로 OSD 없이 복원
-     */
     private fun restoreLocalHardwareAudio(showOsd: Boolean = false) {
         try {
             audioManager?.let { am ->
@@ -801,10 +833,6 @@ class LoungeManager private constructor(context: Context) {
                 val targetVol = if (savedSystemVolume in 1..maxVol) savedSystemVolume else defaultVol
                 val flags = if (showOsd) AudioManager.FLAG_SHOW_UI else 0
                 am.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, flags)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && am.isStreamMute(AudioManager.STREAM_MUSIC)) {
-                    am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
-                }
-                AppLogger.i(TAG, "🔊 [LocalHW-Restore] Hardware volume restored to $targetVol (saved=$savedSystemVolume, max=$maxVol)")
             }
         } catch (e: Exception) {
             Log.w(TAG, "restoreLocalHardwareAudio error", e)
@@ -821,14 +849,12 @@ class LoungeManager private constructor(context: Context) {
             adStartTime = now
         }
 
-        // 1. 0.001초 즉시 로컬 하드웨어 음소거 (네트워크 왕복 1~2초 지연 완전 제거!)
         applyLocalHardwareMute()
 
         if (!wasAlreadyMuted && currentVolume > 0) {
             savedVolumeBeforeMute = currentVolume
         }
 
-        // 2. Lounge 프로토콜 볼륨 0 다중 확인 전송 (초기 버퍼링 중 패킷 무시 현상 원천 방지)
         if (!wasAlreadyMuted || now - lastMuteCommandSentTime >= 450L) {
             lastMuteCommandSentTime = now
             restoreVolumeJob?.cancel()
@@ -863,6 +889,7 @@ class LoungeManager private constructor(context: Context) {
                 isAdPlaying = false
                 isCurrentAdSkippable = false
                 restoreAudio()
+                TvAdSkipService.instance?.onAdEndedSleep()
             }
         }
     }
@@ -884,10 +911,8 @@ class LoungeManager private constructor(context: Context) {
         isAdPlaying = false
         isCurrentAdSkippable = false
 
-        // 1. 로컬 하드웨어 볼륨 즉시 복원 (OSD 없이 매끄럽게 복원)
         restoreLocalHardwareAudio(showOsd = false)
 
-        // 2. 유튜브 Lounge 내부 볼륨 2회 확인 복원
         val restoreVol = if (savedVolumeBeforeMute in 10..100) savedVolumeBeforeMute else 100
         restoreVolumeJob?.cancel()
         restoreVolumeJob = loungeScope.launch {
@@ -904,9 +929,6 @@ class LoungeManager private constructor(context: Context) {
         onAutoMuteCallback?.invoke(false, restoreVol)
     }
 
-    /**
-     * 사용자가 설정 화면에서 [스킵 감지 테스트 / 로그 갱신] 버튼을 수동으로 눌렀을 때만 호출되는 강제 복구 함수
-     */
     fun forceRestoreAudio() {
         restoreLocalHardwareAudio(showOsd = true)
         savedVolumeBeforeMute = 100
@@ -970,21 +992,18 @@ class LoungeManager private constructor(context: Context) {
             if (success) {
                 onSkipCommandSucceeded()
                 AppLogger.i(TAG, "🎯 [Lounge] Successfully executed double-tap skipAd on TV!")
+
+                delay(900)
+                val uiStillHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
+                if (!isAdPlaying && !uiStillHasAd) {
+                    if (isAutoMuted) {
+                        AppLogger.i(TAG, "🎯 [Lounge] Post-skip ad confirmed ended. Restoring audio.")
+                        restoreAudio()
+                    }
+                    TvAdSkipService.instance?.onAdEndedSleep()
+                }
             } else {
                 AppLogger.w(TAG, "⚠️ [Lounge] skipAd command returned failure or ignored by TV.")
-            }
-
-            // 스킵 명령 후 450ms 추가 대기(총 800ms) 뒤 화면에 더 이상 광고/노란 카운트다운이 없을 때 확실하게 볼륨 복원
-            delay(450)
-            val uiStillHasAd = TvAdSkipService.instance?.isAdOrCountdownCurrentlyOnScreen() == true
-            if (!uiStillHasAd && isAutoMuted) {
-                AppLogger.i(TAG, "🎯 [Lounge] Post-skip ad confirmed ended. Restoring audio.")
-                isAdPlaying = false
-                isCurrentAdSkippable = false
-                adSkipCountdownJob?.cancel()
-                adPodBridgeJob?.cancel()
-                adEndVerifyJob?.cancel()
-                restoreAudio()
             }
         }
     }
